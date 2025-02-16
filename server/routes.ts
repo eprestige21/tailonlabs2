@@ -228,18 +228,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Business ID is required" });
       }
 
-      const agent = await db
+      const {
+        name,
+        description,
+        model,
+        personality,
+        tone,
+        temperature,
+        systemPrompt,
+        webhook,
+      } = req.body;
+
+      const [agent] = await db
         .insert(agents)
         .values({
-          name: req.body.name,
-          model: req.body.model,
-          systemPrompt: req.body.systemPrompt,
+          name,
+          description,
+          model,
+          personality,
+          tone,
+          temperature,
+          systemPrompt,
+          webhook,
           isActive: true,
           businessId: req.user.businessId,
         })
         .returning();
 
-      res.status(201).json(agent[0]);
+      res.status(201).json(agent);
     } catch (error) {
       console.error('Error creating agent:', error);
       res.status(500).json({ message: "Failed to create agent" });

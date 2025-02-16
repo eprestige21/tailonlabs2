@@ -1,0 +1,98 @@
+import React, { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Select, SelectItem } from "@/components/ui/select";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import axios from "axios";
+
+export default function CreateAIAgent() {
+  const { register, handleSubmit } = useForm();
+  const [loading, setLoading] = useState(false);
+
+  const onSubmit = async (data) => {
+    setLoading(true);
+    try {
+      const response = await axios.post("/api/ai-agents", data, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+        },
+      });
+      console.log("AI Agent Created:", response.data);
+    } catch (error) {
+      console.error("Error creating AI Agent:", error);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <Card>
+        <CardHeader>
+          <h2 className="text-xl font-bold">Create Your AI Agent</h2>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* General Information */}
+            <div>
+              <label className="font-semibold">Agent Name</label>
+              <Input {...register("agentName", { required: true })} placeholder="Enter agent name" />
+            </div>
+            <div>
+              <label className="font-semibold">Description</label>
+              <Textarea {...register("description")} placeholder="Describe your AI agent" />
+            </div>
+
+            {/* Personality Settings */}
+            <div>
+              <label className="font-semibold">Personality Type</label>
+              <Select {...register("personality")}> 
+                <SelectItem value="friendly">Friendly</SelectItem>
+                <SelectItem value="professional">Professional</SelectItem>
+                <SelectItem value="humorous">Humorous</SelectItem>
+              </Select>
+            </div>
+            <div>
+              <label className="font-semibold">Response Tone</label>
+              <Select {...register("tone")}> 
+                <SelectItem value="casual">Casual</SelectItem>
+                <SelectItem value="formal">Formal</SelectItem>
+                <SelectItem value="enthusiastic">Enthusiastic</SelectItem>
+              </Select>
+            </div>
+
+            {/* Model Settings */}
+            <div>
+              <label className="font-semibold">AI Model</label>
+              <Select {...register("model")}> 
+                <SelectItem value="gpt-4">GPT-4</SelectItem>
+                <SelectItem value="gpt-3.5">GPT-3.5</SelectItem>
+                <SelectItem value="claude">Claude</SelectItem>
+              </Select>
+            </div>
+            <div>
+              <label className="font-semibold">Temperature (Creativity Level)</label>
+              <Input type="range" {...register("temperature")} min="0" max="1" step="0.1" />
+            </div>
+
+            {/* API & Integration */}
+            <div>
+              <label className="font-semibold">API Key</label>
+              <Input {...register("apiKey")} type="password" placeholder="Enter API Key" />
+            </div>
+            <div>
+              <label className="font-semibold">Integration (Webhook URL)</label>
+              <Input {...register("webhook")} type="url" placeholder="Webhook URL" />
+            </div>
+            
+            {/* Submit Button */}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Creating..." : "Create AI Agent"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

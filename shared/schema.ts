@@ -37,8 +37,8 @@ export const businesses = pgTable("businesses", {
 export const usageHistory = pgTable("usage_history", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
-  service: text("service").notNull(), // 'chatgpt', 'twilio_sms', 'heygen', etc.
-  quantity: decimal("quantity").notNull(), // number of requests/messages/minutes
+  service: text("service").notNull(), 
+  quantity: decimal("quantity").notNull(), 
   cost: decimal("cost").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
@@ -46,11 +46,11 @@ export const usageHistory = pgTable("usage_history", {
 export const billingTransactions = pgTable("billing_transactions", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
-  type: text("type").notNull(), // 'auto_recharge', 'manual_recharge', 'usage_deduction'
+  type: text("type").notNull(), 
   amount: decimal("amount").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   description: text("description"),
-  status: text("status").notNull(), // 'pending', 'completed', 'failed'
+  status: text("status").notNull(), 
 });
 
 export const voiceSettings = pgTable("voice_settings", {
@@ -70,8 +70,13 @@ export const agents = pgTable("agents", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
   name: text("name").notNull(),
+  description: text("description"),
   model: text("model").notNull().default("gpt-4"),
+  personality: text("personality").default("professional"),
+  tone: text("tone").default("formal"),
+  temperature: decimal("temperature").default("0.7"),
   systemPrompt: text("system_prompt").notNull(),
+  webhook: text("webhook_url"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -95,11 +100,11 @@ export const knowledgeBase = pgTable("knowledge_base", {
   id: serial("id").primaryKey(),
   agentId: integer("agent_id").references(() => agents.id),
   title: text("title").notNull(),
-  type: text("type").notNull(), // 'text', 'pdf', 'xml', 'url'
+  type: text("type").notNull(), 
   content: text("content").notNull(),
   metadata: jsonb("metadata").$type<{
     sourceUrl?: string;
-    originalContent?: string; // For URLs, store original content before editing
+    originalContent?: string; 
     mimeType?: string;
     fileSize?: number;
   }>(),
@@ -141,10 +146,20 @@ export const insertVoiceSettingsSchema = createInsertSchema(voiceSettings).pick(
   pauseTime: true,
 });
 
-export const insertAgentSchema = createInsertSchema(agents).pick({
+export const insertAgentSchema = createInsertSchema(agents).extend({
+  personality: z.string(),
+  tone: z.string(),
+  temperature: z.number().min(0).max(1),
+  webhook: z.string().url().optional(),
+}).pick({
   name: true,
+  description: true,
   model: true,
+  personality: true,
+  tone: true,
+  temperature: true,
   systemPrompt: true,
+  webhook: true,
   isActive: true,
 });
 

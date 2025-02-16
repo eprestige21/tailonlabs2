@@ -1,51 +1,72 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Agent, AgentFunction, KnowledgeBase, InsertAgent, InsertAgentFunction, InsertKnowledgeBase } from "@shared/schema";
+import { Agent, InsertAgent, insertAgentSchema } from "@shared/schema";
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Save, Upload, Globe, FileText, File } from "lucide-react";
+import { Plus } from "lucide-react";
+import * as z from 'zod';
+import { AgentFunction, KnowledgeBase, InsertAgentFunction, InsertKnowledgeBase } from "@shared/schema";
 import { format } from "date-fns";
+import { Upload, Globe, FileText, File } from "lucide-react";
 
-const LLM_MODELS = [
-  { id: "gpt-4", name: "GPT-4" },
-  { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
+
+const PERSONALITY_TYPES = [
+  { value: "friendly", label: "Friendly" },
+  { value: "professional", label: "Professional" },
+  { value: "humorous", label: "Humorous" },
+];
+
+const RESPONSE_TONES = [
+  { value: "casual", label: "Casual" },
+  { value: "formal", label: "Formal" },
+  { value: "enthusiastic", label: "Enthusiastic" },
+];
+
+const AI_MODELS = [
+  { value: "gpt-4", label: "GPT-4" },
+  { value: "gpt-3.5", label: "GPT-3.5" },
+  { value: "claude", label: "Claude" },
 ];
 
 export default function AIAgentPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [editMode, setEditMode] = useState<{ [key: number]: boolean }>({});
+  const [temperatureValue, setTemperatureValue] = useState(0.7);
+
+  const form = useForm({
+    resolver: zodResolver(insertAgentSchema.extend({
+      personality: z.string(),
+      tone: z.string(),
+      temperature: z.number().min(0).max(1),
+      webhook: z.string().url().optional(),
+    })),
+    defaultValues: {
+      name: "",
+      description: "",
+      personality: "professional",
+      tone: "formal",
+      model: "gpt-4",
+      temperature: 0.7,
+      systemPrompt: "",
+      webhook: "",
+    },
+  });
 
   const { data: agents = [], isLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
     enabled: !!user?.businessId,
-    onError: (error) => {
-      toast({
-        title: "Failed to load agents",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
   });
-
-  useEffect(() => {
-    if (agents.length > 0) {
-      console.log('Loaded agents:', agents);
-    }
-  }, [agents]);
 
   const addAgentMutation = useMutation({
     mutationFn: async (data: InsertAgent) => {
@@ -58,11 +79,11 @@ export default function AIAgentPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agents"] });
-      setShowAddDialog(false);
       toast({
         title: "Agent created",
         description: "The AI agent has been created successfully.",
       });
+      form.reset();
     },
     onError: (error: Error) => {
       toast({
@@ -73,30 +94,14 @@ export default function AIAgentPage() {
     },
   });
 
-  const updateAgentMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertAgent> }) => {
-      const res = await apiRequest("PATCH", `/api/agents/${id}`, data);
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to update agent");
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agents"] });
-      setEditMode({});
-      toast({
-        title: "Agent updated",
-        description: "The AI agent has been updated successfully.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to update agent",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
+  const onSubmit = form.handleSubmit((data) => {
+    const agentData: InsertAgent = {
+      name: data.name,
+      model: data.model,
+      systemPrompt: `Personality: ${data.personality}\nTone: ${data.tone}\n\n${data.systemPrompt}`,
+      isActive: true,
+    };
+    addAgentMutation.mutate(agentData);
   });
 
   const addFunctionMutation = useMutation({
@@ -141,69 +146,6 @@ export default function AIAgentPage() {
     },
   });
 
-  const AgentForm = () => {
-    const handleSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      const formData = new FormData(e.target as HTMLFormElement);
-      const data: InsertAgent = {
-        name: formData.get("name") as string,
-        model: formData.get("model") as string,
-        systemPrompt: formData.get("systemPrompt") as string,
-        isActive: true,
-      };
-
-      addAgentMutation.mutate(data);
-    };
-
-    return (
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid gap-2">
-          <Label htmlFor="name">Agent Name</Label>
-          <Input id="name" name="name" required />
-        </div>
-
-        <div className="grid gap-2">
-          <Label htmlFor="model">LLM Model</Label>
-          <Select name="model" defaultValue="gpt-4">
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LLM_MODELS.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  {model.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="grid gap-2">
-          <Label htmlFor="systemPrompt">System Prompt</Label>
-          <Textarea
-            id="systemPrompt"
-            name="systemPrompt"
-            required
-            rows={4}
-            placeholder="Enter the system prompt for the agent..."
-          />
-        </div>
-
-        <div className="flex justify-end space-x-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setShowAddDialog(false)}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={addAgentMutation.isPending}>
-            Create Agent
-          </Button>
-        </div>
-      </form>
-    );
-  };
 
   const KnowledgeBaseSection = ({ agentId }: { agentId: number }) => {
     const { data: knowledge = [] } = useQuery<KnowledgeBase[]>({
@@ -454,153 +396,238 @@ export default function AIAgentPage() {
   return (
     <DashboardShell>
       <PageHeader
-        title="AI Agent"
-        description="Create and manage your AI agents with custom functions and knowledge base"
+        title="Create AI Agent"
+        description="Configure and deploy your custom AI agent"
       />
 
-      <div className="flex justify-end mt-8">
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Agent
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Create New AI Agent</DialogTitle>
-            </DialogHeader>
-            <AgentForm />
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="mt-8">
-        {agents.map((agent) => (
-          <Card key={agent.id} className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                {editMode[agent.id] ? (
-                  <form
-                    className="flex-1 mr-4"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const formData = new FormData(e.target as HTMLFormElement);
-                      updateAgentMutation.mutate({
-                        id: agent.id,
-                        data: {
-                          name: formData.get("name") as string,
-                          model: formData.get("model") as string,
-                          systemPrompt: formData.get("systemPrompt") as string,
-                        },
-                      });
-                    }}
-                  >
-                    <div className="space-y-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor={`name-${agent.id}`}>Name</Label>
-                        <Input
-                          id={`name-${agent.id}`}
-                          name="name"
-                          defaultValue={agent.name}
-                          required
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor={`model-${agent.id}`}>Model</Label>
-                        <Select name="model" defaultValue={agent.model}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {LLM_MODELS.map((model) => (
-                              <SelectItem key={model.id} value={model.id}>
-                                {model.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor={`systemPrompt-${agent.id}`}>System Prompt</Label>
-                        <Textarea
-                          id={`systemPrompt-${agent.id}`}
-                          name="systemPrompt"
-                          defaultValue={agent.systemPrompt}
-                          required
-                          rows={4}
-                        />
-                      </div>
-                      <div className="flex justify-end space-x-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() =>
-                            setEditMode((prev) => ({ ...prev, [agent.id]: false }))
-                          }
-                        >
-                          Cancel
-                        </Button>
-                        <Button type="submit">Save Changes</Button>
-                      </div>
-                    </div>
-                  </form>
-                ) : (
-                  <>
-                    <span>{agent.name}</span>
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm font-normal text-muted-foreground">
-                        {agent.model}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setEditMode((prev) => ({ ...prev, [agent.id]: true }))
-                        }
-                      >
-                        Edit
-                      </Button>
-                    </div>
-                  </>
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Agent Configuration</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={onSubmit} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Agent Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter agent name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="prompt" className="w-full">
-                <TabsList>
-                  <TabsTrigger value="prompt">System Prompt</TabsTrigger>
-                  <TabsTrigger value="functions">Functions</TabsTrigger>
-                  <TabsTrigger value="knowledge">Knowledge Base</TabsTrigger>
-                </TabsList>
+              />
 
-                <TabsContent value="prompt">
-                  {!editMode[agent.id] && (
-                    <Textarea
-                      value={agent.systemPrompt}
-                      readOnly
-                      rows={4}
-                      className="w-full mt-4"
-                    />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="Describe your AI agent" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="personality"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Personality Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select personality" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {PERSONALITY_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </TabsContent>
+                />
 
-                <TabsContent value="functions">
-                  <div className="mt-4">
-                    <FunctionSection agentId={agent.id} />
-                  </div>
-                </TabsContent>
+                <FormField
+                  control={form.control}
+                  name="tone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Response Tone</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select tone" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {RESPONSE_TONES.map((tone) => (
+                            <SelectItem key={tone.value} value={tone.value}>
+                              {tone.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-                <TabsContent value="knowledge">
-                  <div className="mt-4">
-                    <KnowledgeBaseSection agentId={agent.id} />
+              <FormField
+                control={form.control}
+                name="model"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>AI Model</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select AI model" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {AI_MODELS.map((model) => (
+                          <SelectItem key={model.value} value={model.value}>
+                            {model.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="temperature"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Temperature (Creativity Level)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.1" 
+                        value={temperatureValue}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          setTemperatureValue(value);
+                          field.onChange(value);
+                        }}
+                      />
+                    </FormControl>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      Current value: {temperatureValue}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="systemPrompt"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>System Prompt</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        {...field} 
+                        rows={4}
+                        placeholder="Enter the system prompt for your agent..." 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="webhook"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Integration (Webhook URL)</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="url" placeholder="https://your-webhook.com/endpoint" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={addAgentMutation.isPending}
+              >
+                {addAgentMutation.isPending ? "Creating..." : "Create AI Agent"}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      {agents.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Your AI Agents</h2>
+          <div className="grid gap-6">
+            {agents.map((agent) => (
+              <Card key={agent.id}>
+                <CardHeader>
+                  <CardTitle>{agent.name}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div>
+                      <span className="font-medium">Model:</span> {agent.model}
+                    </div>
+                    <div>
+                      <span className="font-medium">Status:</span>{" "}
+                      <span className={agent.isActive ? "text-green-500" : "text-red-500"}>
+                        {agent.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">System Prompt:</span>
+                      <Textarea 
+                        value={agent.systemPrompt}
+                        readOnly
+                        rows={3}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <span className="font-medium">Functions:</span>
+                      <FunctionSection agentId={agent.id} />
+                    </div>
+                    <div>
+                      <span className="font-medium">Knowledge Base:</span>
+                      <KnowledgeBaseSection agentId={agent.id} />
+                    </div>
                   </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </DashboardShell>
   );
 }
