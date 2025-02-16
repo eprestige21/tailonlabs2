@@ -10,6 +10,7 @@ import {
   LogOut,
   Volume2,
   Brain,
+  BarChart3,
 } from "lucide-react";
 
 interface SidebarLinkProps {
@@ -48,6 +49,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     { href: "/ai-agent", icon: <Brain className="h-4 w-4" />, label: "AI Agent" },
     { href: "/billing", icon: <CreditCard className="h-4 w-4" />, label: "Billing" },
     { href: "/voice-settings", icon: <Volume2 className="h-4 w-4" />, label: "Voice Settings" },
+    { href: "/analytics", icon: <BarChart3 className="h-4 w-4" />, label: "Analytics" },
   ];
 
   return (
