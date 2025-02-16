@@ -1,3 +1,4 @@
+import React from "react";
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +33,7 @@ const statsCards = [
   { title: "Bounce Rate", value: "42.3%", change: "-3.1%" },
 ];
 
-export default function AnalyticsPage() {
+const AnalyticsPage: React.FC = () => {
   const { data: analyticsData = mockData, isLoading } = useQuery({
     queryKey: ["/api/analytics"],
     enabled: false, // Disabled until GA integration is implemented
@@ -110,4 +111,6 @@ export default function AnalyticsPage() {
       </Card>
     </DashboardShell>
   );
-}
+};
+
+export default AnalyticsPage;
