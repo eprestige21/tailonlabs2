@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { businesses, usageHistory, billingTransactions, voiceSettings, users } from "@shared/schema";
+import { businesses, agents, agentFunctions, knowledgeBase, usageHistory, billingTransactions, voiceSettings, users } from "@shared/schema";
 import { eq, and, gte, desc } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
@@ -198,6 +198,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // In a real implementation, this would call the ElevenLabs API
     // For now, we'll return a mock response
     res.status(501).send("Preview functionality not implemented");
+  });
+
+  // Agent routes
+  app.get("/api/agents", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const agentsList = await db
+      .select()
+      .from(agents)
+      .where(eq(agents.businessId, req.user.businessId))
+      .orderBy(desc(agents.updatedAt));
+
+    res.json(agentsList);
+  });
+
+  app.post("/api/agents", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const [agent] = await db
+      .insert(agents)
+      .values({
+        ...req.body,
+        businessId: req.user.businessId,
+      })
+      .returning();
+
+    res.status(201).json(agent);
+  });
+
+  // Agent functions routes
+  app.get("/api/agents/:agentId/functions", async (req, res) => {
+    const functions = await db
+      .select()
+      .from(agentFunctions)
+      .where(eq(agentFunctions.agentId, parseInt(req.params.agentId)))
+      .orderBy(desc(agentFunctions.updatedAt));
+
+    res.json(functions);
+  });
+
+  app.post("/api/agents/:agentId/functions", async (req, res) => {
+    const [func] = await db
+      .insert(agentFunctions)
+      .values({
+        ...req.body,
+        agentId: parseInt(req.params.agentId),
+      })
+      .returning();
+
+    res.status(201).json(func);
+  });
+
+  // Knowledge base routes
+  app.get("/api/agents/:agentId/knowledge", async (req, res) => {
+    const entries = await db
+      .select()
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.agentId, parseInt(req.params.agentId)))
+      .orderBy(desc(knowledgeBase.updatedAt));
+
+    res.json(entries);
+  });
+
+  app.post("/api/agents/:agentId/knowledge", async (req, res) => {
+    const [entry] = await db
+      .insert(knowledgeBase)
+      .values({
+        ...req.body,
+        agentId: parseInt(req.params.agentId),
+      })
+      .returning();
+
+    res.status(201).json(entry);
+  });
+
+  app.patch("/api/agents/:agentId/knowledge/:id", async (req, res) => {
+    const [entry] = await db
+      .update(knowledgeBase)
+      .set({
+        ...req.body,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(knowledgeBase.id, parseInt(req.params.id)),
+          eq(knowledgeBase.agentId, parseInt(req.params.agentId))
+        )
+      )
+      .returning();
+
+    if (!entry) {
+      return res.status(404).send("Knowledge base entry not found");
+    }
+
+    res.json(entry);
   });
 
   const httpServer = createServer(app);

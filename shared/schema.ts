@@ -66,6 +66,47 @@ export const voiceSettings = pgTable("voice_settings", {
   pauseTime: decimal("pause_time").notNull().default("0.5"),
 });
 
+export const agents = pgTable("agents", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id),
+  name: text("name").notNull(),
+  model: text("model").notNull().default("gpt-4"),
+  systemPrompt: text("system_prompt").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const agentFunctions = pgTable("agent_functions", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").references(() => agents.id),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  parameters: jsonb("parameters").$type<{
+    type: string;
+    properties: Record<string, { type: string; description: string }>;
+    required: string[];
+  }>().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const knowledgeBase = pgTable("knowledge_base", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").references(() => agents.id),
+  title: text("title").notNull(),
+  type: text("type").notNull(), // 'text', 'pdf', 'xml', 'url'
+  content: text("content").notNull(),
+  metadata: jsonb("metadata").$type<{
+    sourceUrl?: string;
+    originalContent?: string; // For URLs, store original content before editing
+    mimeType?: string;
+    fileSize?: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -100,6 +141,26 @@ export const insertVoiceSettingsSchema = createInsertSchema(voiceSettings).pick(
   pauseTime: true,
 });
 
+export const insertAgentSchema = createInsertSchema(agents).pick({
+  name: true,
+  model: true,
+  systemPrompt: true,
+  isActive: true,
+});
+
+export const insertAgentFunctionSchema = createInsertSchema(agentFunctions).pick({
+  name: true,
+  description: true,
+  parameters: true,
+});
+
+export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick({
+  title: true,
+  type: true,
+  content: true,
+  metadata: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Business = typeof businesses.$inferSelect;
@@ -107,3 +168,9 @@ export type UsageHistory = typeof usageHistory.$inferSelect;
 export type BillingTransaction = typeof billingTransactions.$inferSelect;
 export type VoiceSettings = typeof voiceSettings.$inferSelect;
 export type InsertVoiceSettings = z.infer<typeof insertVoiceSettingsSchema>;
+export type InsertAgent = z.infer<typeof insertAgentSchema>;
+export type Agent = typeof agents.$inferSelect;
+export type AgentFunction = typeof agentFunctions.$inferSelect;
+export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
+export type InsertAgentFunction = z.infer<typeof insertAgentFunctionSchema>;
+export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
