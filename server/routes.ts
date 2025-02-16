@@ -368,6 +368,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(entry);
   });
 
+  app.get("/api/agents/:agentId/knowledge/export", async (req, res) => {
+    try {
+      if (!req.user?.businessId) {
+        return res.status(400).json({ message: "Business ID is required" });
+      }
+
+      // Verify the agent belongs to the user's business
+      const [agent] = await db
+        .select()
+        .from(agents)
+        .where(
+          and(
+            eq(agents.id, parseInt(req.params.agentId)),
+            eq(agents.businessId, req.user.businessId)
+          )
+        );
+
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+
+      const entries = await db
+        .select()
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.agentId, parseInt(req.params.agentId)))
+        .orderBy(desc(knowledgeBase.updatedAt));
+
+      // Send as a downloadable JSON file
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename=knowledge-base-${req.params.agentId}-${new Date().toISOString()}.json`);
+      res.json(entries);
+    } catch (error) {
+      console.error('Error exporting knowledge base:', error);
+      res.status(500).json({ message: "Failed to export knowledge base" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

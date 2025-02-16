@@ -14,11 +14,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Save, Upload, Download, Globe, FileText, File } from "lucide-react";
 import * as z from 'zod';
 import { AgentFunction, KnowledgeBase, InsertAgentFunction, InsertKnowledgeBase } from "@shared/schema";
 import { format } from "date-fns";
-import { Upload, Globe, FileText, File } from "lucide-react";
 
 
 const PERSONALITY_TYPES = [
@@ -153,6 +152,64 @@ export default function AIAgentPage() {
       enabled: !!agentId,
     });
 
+    const handleBatchFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+
+      for (const file of files) {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const content = event.target?.result as string;
+          const type = file.type.includes("xml")
+            ? "xml"
+            : file.type.includes("pdf")
+            ? "pdf"
+            : "text";
+
+          const data: InsertKnowledgeBase = {
+            title: file.name,
+            type,
+            content,
+            metadata: {
+              mimeType: file.type,
+              fileSize: file.size,
+            },
+          };
+
+          addKnowledgeMutation.mutate({ agentId, data });
+        };
+        reader.readAsText(file);
+      }
+    };
+
+    const handleExport = async () => {
+      try {
+        const res = await apiRequest(
+          "GET",
+          `/api/agents/${agentId}/knowledge/export`
+        );
+        if (!res.ok) {
+          throw new Error("Failed to export knowledge base");
+        }
+
+        const data = await res.blob();
+        const url = window.URL.createObjectURL(data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `knowledge-base-${agentId}-${new Date().toISOString()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        toast({
+          title: "Export failed",
+          description: error instanceof Error ? error.message : "Failed to export knowledge base",
+          variant: "destructive",
+        });
+      }
+    };
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -200,6 +257,25 @@ export default function AIAgentPage() {
     return (
       <div className="space-y-4">
         <div className="flex gap-4">
+          <input
+            type="file"
+            accept=".txt,.pdf,.xml"
+            multiple
+            className="hidden"
+            id="batch-file-upload"
+            onChange={handleBatchFileUpload}
+          />
+          <Button
+            variant="outline"
+            onClick={() => document.getElementById("batch-file-upload")?.click()}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Import Files
+          </Button>
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />
+            Export All
+          </Button>
           <input
             type="file"
             accept=".txt,.pdf,.xml"
@@ -519,11 +595,11 @@ export default function AIAgentPage() {
                   <FormItem>
                     <FormLabel>Temperature (Creativity Level)</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="range" 
-                        min="0" 
-                        max="1" 
-                        step="0.1" 
+                      <Input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
                         value={temperatureValue}
                         onChange={(e) => {
                           const value = parseFloat(e.target.value);
@@ -547,10 +623,10 @@ export default function AIAgentPage() {
                   <FormItem>
                     <FormLabel>System Prompt</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        {...field} 
+                      <Textarea
+                        {...field}
                         rows={4}
-                        placeholder="Enter the system prompt for your agent..." 
+                        placeholder="Enter the system prompt for your agent..."
                       />
                     </FormControl>
                     <FormMessage />
@@ -572,8 +648,8 @@ export default function AIAgentPage() {
                 )}
               />
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full"
                 disabled={addAgentMutation.isPending}
               >
@@ -606,7 +682,7 @@ export default function AIAgentPage() {
                     </div>
                     <div>
                       <span className="font-medium">System Prompt:</span>
-                      <Textarea 
+                      <Textarea
                         value={agent.systemPrompt}
                         readOnly
                         rows={3}
