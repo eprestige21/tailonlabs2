@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -32,7 +32,20 @@ export default function AIAgentPage() {
   const { data: agents = [], isLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
     enabled: !!user?.businessId,
+    onError: (error) => {
+      toast({
+        title: "Failed to load agents",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
+
+  useEffect(() => {
+    if (agents.length > 0) {
+      console.log('Loaded agents:', agents);
+    }
+  }, [agents]);
 
   const addAgentMutation = useMutation({
     mutationFn: async (data: InsertAgent) => {

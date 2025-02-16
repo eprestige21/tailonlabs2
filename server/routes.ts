@@ -202,17 +202,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Agent routes
   app.get("/api/agents", async (req, res) => {
-    if (!req.user?.businessId) {
-      return res.status(400).json({ message: "Business ID is required" });
+    try {
+      if (!req.user?.businessId) {
+        return res.status(400).json({ message: "Business ID is required" });
+      }
+
+      console.log('Fetching agents for business:', req.user.businessId);
+      const agentsList = await db
+        .select()
+        .from(agents)
+        .where(eq(agents.businessId, req.user.businessId))
+        .orderBy(desc(agents.updatedAt));
+
+      console.log('Found agents:', agentsList);
+      res.json(agentsList);
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      res.status(500).json({ message: "Failed to fetch agents" });
     }
-
-    const agentsList = await db
-      .select()
-      .from(agents)
-      .where(eq(agents.businessId, req.user.businessId))
-      .orderBy(desc(agents.updatedAt));
-
-    res.json(agentsList);
   });
 
   app.post("/api/agents", async (req, res) => {
