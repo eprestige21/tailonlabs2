@@ -39,7 +39,20 @@ export const knowledgeBase = pgTable("knowledge_base", {
   businessId: integer("business_id").references(() => businesses.id),
   title: text("title").notNull(),
   content: text("content").notNull(),
-  type: text("type").notNull(), // function, knowledge
+  type: text("type").notNull(), // 'knowledge', 'function'
+  chatgptVersion: text("chatgpt_version").notNull().default("gpt-4"),
+  functionParameters: jsonb("function_parameters").$type<{
+    name: string;
+    description: string;
+    parameters: {
+      type: string;
+      properties: Record<string, { type: string; description: string }>;
+      required: string[];
+    };
+  }>(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const usageHistory = pgTable("usage_history", {
@@ -89,6 +102,9 @@ export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick(
   title: true,
   content: true,
   type: true,
+  chatgptVersion: true,
+  functionParameters: true,
+  isActive: true,
 });
 
 export const insertUsageHistorySchema = createInsertSchema(usageHistory).pick({
@@ -122,3 +138,4 @@ export type UsageHistory = typeof usageHistory.$inferSelect;
 export type BillingTransaction = typeof billingTransactions.$inferSelect;
 export type VoiceSettings = typeof voiceSettings.$inferSelect;
 export type InsertVoiceSettings = z.infer<typeof insertVoiceSettingsSchema>;
+export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;

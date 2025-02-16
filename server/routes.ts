@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { businesses, knowledgeBase, usageHistory, billingTransactions, voiceSettings } from "@shared/schema";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, desc } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
 
@@ -35,16 +35,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/knowledge-base", async (req, res) => {
     const entries = await db
       .select()
-      .from(knowledgeBase);
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.businessId, req.user?.businessId!))
+      .orderBy(desc(knowledgeBase.updatedAt));
     res.json(entries);
   });
 
   app.post("/api/knowledge-base", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
     const [entry] = await db
       .insert(knowledgeBase)
-      .values(req.body)
+      .values({
+        ...req.body,
+        businessId: req.user.businessId,
+      })
       .returning();
     res.status(201).json(entry);
+  });
+
+  app.patch("/api/knowledge-base/:id", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const [entry] = await db
+      .update(knowledgeBase)
+      .set({
+        ...req.body,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(knowledgeBase.id, parseInt(req.params.id)),
+          eq(knowledgeBase.businessId, req.user.businessId)
+        )
+      )
+      .returning();
+
+    if (!entry) {
+      return res.status(404).send("Entry not found");
+    }
+
+    res.json(entry);
   });
 
   // Usage history routes
