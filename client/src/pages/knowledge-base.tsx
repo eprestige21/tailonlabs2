@@ -34,6 +34,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { KnowledgeBase, InsertKnowledgeBase } from "@shared/schema";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const GPT_VERSIONS = [
   { id: "gpt-4", name: "GPT-4" },
@@ -46,6 +47,7 @@ export default function KnowledgeBasePage() {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState<number | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [testResults, setTestResults] = useState<Record<number, any>>({});
 
   const { data: entries = [], isLoading } = useQuery<KnowledgeBase[]>({
     queryKey: ["/api/knowledge-base"],
@@ -341,6 +343,77 @@ export default function KnowledgeBasePage() {
                     <div>
                       <span className="font-medium">Content:</span>
                       <div className="mt-2 whitespace-pre-wrap">{entry.content}</div>
+                    </div>
+                  )}
+                  {entry.type === "function" && (
+                    <div className="mt-4 pt-4 border-t">
+                      <Tabs defaultValue="test">
+                        <TabsList>
+                          <TabsTrigger value="test">Test Function</TabsTrigger>
+                          <TabsTrigger value="result">Last Result</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="test">
+                          <form
+                            onSubmit={async (e) => {
+                              e.preventDefault();
+                              const form = e.target as HTMLFormElement;
+                              const formData = new FormData(form);
+                              const parameters: Record<string, any> = {};
+
+                              for (const [key, value] of formData.entries()) {
+                                try {
+                                  parameters[key] = JSON.parse(value as string);
+                                } catch {
+                                  parameters[key] = value;
+                                }
+                              }
+
+                              try {
+                                const res = await apiRequest(
+                                  "POST",
+                                  `/api/knowledge-base/${entry.id}/execute`,
+                                  parameters
+                                );
+                                const result = await res.json();
+                                setTestResults((prev) => ({ ...prev, [entry.id]: result }));
+                                toast({
+                                  title: "Function executed",
+                                  description: "Check the results tab to see the output.",
+                                });
+                              } catch (error) {
+                                toast({
+                                  title: "Function execution failed",
+                                  description: error instanceof Error ? error.message : "Unknown error occurred",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                            className="space-y-4"
+                          >
+                            {Object.entries(
+                              entry.functionParameters?.parameters.properties || {}
+                            ).map(([name, schema]) => (
+                              <div key={name} className="grid gap-2">
+                                <Label htmlFor={name}>{name}</Label>
+                                <Input
+                                  id={name}
+                                  name={name}
+                                  placeholder={(schema as any).description}
+                                  required={
+                                    entry.functionParameters?.parameters.required.includes(name)
+                                  }
+                                />
+                              </div>
+                            ))}
+                            <Button type="submit">Execute Function</Button>
+                          </form>
+                        </TabsContent>
+                        <TabsContent value="result">
+                          <pre className="p-4 bg-gray-50 rounded-md overflow-x-auto">
+                            {JSON.stringify(testResults[entry.id] || {}, null, 2)}
+                          </pre>
+                        </TabsContent>
+                      </Tabs>
                     </div>
                   )}
                 </div>

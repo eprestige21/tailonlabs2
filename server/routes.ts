@@ -82,6 +82,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(entry);
   });
 
+  app.post("/api/knowledge-base/:id/execute", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const [entry] = await db
+      .select()
+      .from(knowledgeBase)
+      .where(
+        and(
+          eq(knowledgeBase.id, parseInt(req.params.id)),
+          eq(knowledgeBase.businessId, req.user.businessId)
+        )
+      );
+
+    if (!entry) {
+      return res.status(404).send("Entry not found");
+    }
+
+    if (entry.type !== "function") {
+      return res.status(400).send("This entry is not a function");
+    }
+
+    try {
+      const result = await executeFunction(entry, req.body);
+      res.json(result);
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    }
+  });
+
+  app.post("/api/knowledge-base/:id/query", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const [entry] = await db
+      .select()
+      .from(knowledgeBase)
+      .where(
+        and(
+          eq(knowledgeBase.id, parseInt(req.params.id)),
+          eq(knowledgeBase.businessId, req.user.businessId)
+        )
+      );
+
+    if (!entry) {
+      return res.status(404).send("Entry not found");
+    }
+
+    if (entry.type !== "knowledge") {
+      return res.status(400).send("This entry is not a knowledge base item");
+    }
+
+    try {
+      const response = await getKnowledgeBaseResponse(entry, req.body.query);
+      res.json({ response });
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    }
+  });
+
+  app.post("/api/knowledge-base/validate-function", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    try {
+      const result = await validateFunctionDefinition(req.body);
+      res.json(result);
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    }
+  });
+
   // Usage history routes
   app.get("/api/usage-history", async (req, res) => {
     const { service, period } = req.query;
@@ -235,4 +316,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Placeholder functions -  These need to be implemented elsewhere
+async function executeFunction(entry: any, body: any): Promise<any> {
+  throw new Error("Function not implemented");
+}
+
+async function getKnowledgeBaseResponse(entry: any, query: string): Promise<string> {
+  throw new Error("Function not implemented");
+}
+
+async function validateFunctionDefinition(definition: any): Promise<boolean> {
+  throw new Error("Function not implemented");
 }
