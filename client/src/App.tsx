@@ -11,6 +11,7 @@ import ApiIntegrations from "@/pages/api-integrations";
 import Billing from "@/pages/billing";
 import VoiceSettings from "@/pages/voice-settings";
 import AIAgentPage from "@/pages/ai-agent";
+import AnalyticsPage from "@/pages/analytics";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +32,7 @@ function Router() {
       <ProtectedRoute path="/billing" component={Billing} />
       <ProtectedRoute path="/voice-settings" component={VoiceSettings} />
       <ProtectedRoute path="/ai-agent" component={AIAgentPage} />
+      <ProtectedRoute path="/analytics" component={AnalyticsPage} />
       <Route component={NotFound} />
     </Switch>
   );
