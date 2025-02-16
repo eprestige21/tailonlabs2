@@ -203,7 +203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Agent routes
   app.get("/api/agents", async (req, res) => {
     if (!req.user?.businessId) {
-      return res.status(400).send("Business ID is required");
+      return res.status(400).json({ message: "Business ID is required" });
     }
 
     const agentsList = await db
@@ -216,19 +216,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/agents", async (req, res) => {
-    if (!req.user?.businessId) {
-      return res.status(400).send("Business ID is required");
+    try {
+      if (!req.user?.businessId) {
+        return res.status(400).json({ message: "Business ID is required" });
+      }
+
+      const agent = await db
+        .insert(agents)
+        .values({
+          name: req.body.name,
+          model: req.body.model,
+          systemPrompt: req.body.systemPrompt,
+          isActive: true,
+          businessId: req.user.businessId,
+        })
+        .returning();
+
+      res.status(201).json(agent[0]);
+    } catch (error) {
+      console.error('Error creating agent:', error);
+      res.status(500).json({ message: "Failed to create agent" });
     }
-
-    const [agent] = await db
-      .insert(agents)
-      .values({
-        ...req.body,
-        businessId: req.user.businessId,
-      })
-      .returning();
-
-    res.status(201).json(agent);
   });
 
   // Agent functions routes

@@ -36,6 +36,10 @@ export default function AIAgentPage() {
   const addAgentMutation = useMutation({
     mutationFn: async (data: InsertAgent) => {
       const res = await apiRequest("POST", "/api/agents", data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to create agent");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -44,6 +48,13 @@ export default function AIAgentPage() {
       toast({
         title: "Agent created",
         description: "The AI agent has been created successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to create agent",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
@@ -94,7 +105,6 @@ export default function AIAgentPage() {
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       const formData = new FormData(e.target as HTMLFormElement);
-      
       const data: InsertAgent = {
         name: formData.get("name") as string,
         model: formData.get("model") as string,
@@ -168,8 +178,8 @@ export default function AIAgentPage() {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const content = event.target?.result as string;
-        const type = file.type.includes("xml") 
-          ? "xml" 
+        const type = file.type.includes("xml")
+          ? "xml"
           : file.type.includes("pdf")
           ? "pdf"
           : "text";
@@ -192,7 +202,7 @@ export default function AIAgentPage() {
     const handleUrlSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       const formData = new FormData(e.target as HTMLFormElement);
-      
+
       const data: InsertKnowledgeBase = {
         title: formData.get("title") as string,
         type: "url",
@@ -314,7 +324,7 @@ export default function AIAgentPage() {
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       const formData = new FormData(e.target as HTMLFormElement);
-      
+
       try {
         const parameters = JSON.parse(formData.get("parameters") as string);
         const data: InsertAgentFunction = {
