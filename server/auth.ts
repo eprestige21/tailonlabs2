@@ -28,6 +28,11 @@ async function comparePasswords(supplied: string, stored: string) {
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
+// Generate a random reset token
+async function generateResetToken() {
+  return randomBytes(32).toString("hex");
+}
+
 export function setupAuth(app: Express) {
   // Ensure we have a session secret
   if (!process.env.SESSION_SECRET) {
@@ -120,5 +125,40 @@ export function setupAuth(app: Express) {
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.json(req.user);
+  });
+
+  // Password reset functionality
+  app.post("/api/forgot-password", async (req, res) => {
+    try {
+      const { username } = req.body;
+      const user = await storage.getUserByUsername(username);
+
+      if (!user) {
+        // Don't reveal whether a user exists
+        return res.status(200).json({ 
+          message: "If an account exists with that username, you will receive a password reset email." 
+        });
+      }
+
+      // Generate a reset token
+      const resetToken = await generateResetToken();
+      const resetExpires = new Date(Date.now() + 3600000); // 1 hour from now
+
+      // Store the reset token and expiration
+      await storage.storeResetToken(user.id, resetToken, resetExpires);
+
+      // In a real application, send an email here with the reset link
+      // For demo purposes, we'll just return success
+      // The actual reset would happen at /api/reset-password/:token
+
+      res.status(200).json({ 
+        message: "If an account exists with that username, you will receive a password reset email." 
+      });
+    } catch (error) {
+      console.error("Password reset error:", error);
+      res.status(500).json({ 
+        message: "An error occurred while processing your request." 
+      });
+    }
   });
 }
