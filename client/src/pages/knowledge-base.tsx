@@ -22,7 +22,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Trash2, Save } from "lucide-react";
+import { Plus, Save, Trash2, PlayCircle, Book } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
@@ -39,8 +39,8 @@ import { Redirect } from "wouter";
 import { Loader2 } from "lucide-react";
 
 const GPT_VERSIONS = [
+  { id: "gpt-4o", name: "GPT-4 Latest" },
   { id: "gpt-4", name: "GPT-4" },
-  { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
   { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
 ];
 
@@ -49,20 +49,15 @@ export default function KnowledgeBasePage() {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState<number | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [testQuery, setTestQuery] = useState("");
   const [testResults, setTestResults] = useState<Record<number, any>>({});
 
   const { data: entries = [], isLoading } = useQuery<KnowledgeBase[]>({
     queryKey: ["/api/knowledge-base"],
-    enabled: true, // Removed the businessId check here.
-  });
-
-  // Get business data
-  const { data: business, isLoading: isBusinessLoading } = useQuery({
-    queryKey: ["/api/business", user?.businessId],
     enabled: !!user?.businessId,
   });
 
-  if (isLoading || isBusinessLoading) {
+  if (isLoading) {
     return (
       <DashboardShell>
         <div className="flex items-center justify-center h-[50vh]">
@@ -73,7 +68,7 @@ export default function KnowledgeBasePage() {
   }
 
   // Redirect to business profile if no business is associated
-  if (!isLoading && !user?.businessId) {
+  if (!user?.businessId) {
     return <Redirect to="/business" />;
   }
 
@@ -119,10 +114,35 @@ export default function KnowledgeBasePage() {
     },
   });
 
+  const testMutation = useMutation({
+    mutationFn: async ({ id, type, query }: { id: number; type: "function" | "knowledge"; query?: string }) => {
+      if (type === "function") {
+        const res = await apiRequest("POST", `/api/knowledge-base/${id}/execute`, {});
+        return res.json();
+      } else {
+        const res = await apiRequest("POST", `/api/knowledge-base/${id}/query`, { query });
+        return res.json();
+      }
+    },
+    onSuccess: (result, variables) => {
+      setTestResults((prev) => ({ ...prev, [variables.id]: result }));
+      toast({
+        title: "Test completed",
+        description: "Check the results panel to see the output.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Test failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent, id?: number) => {
     e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
+    const formData = new FormData(e.target as HTMLFormElement);
 
     const data: InsertKnowledgeBase = {
       title: formData.get("title") as string,
@@ -175,7 +195,7 @@ export default function KnowledgeBasePage() {
 
         <div className="grid gap-2">
           <Label htmlFor="chatgptVersion">ChatGPT Version</Label>
-          <Select name="chatgptVersion" defaultValue={entry?.chatgptVersion || "gpt-4"}>
+          <Select name="chatgptVersion" defaultValue={entry?.chatgptVersion || "gpt-4o"}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -212,9 +232,7 @@ export default function KnowledgeBasePage() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="functionParameters">
-                Parameters (JSON)
-              </Label>
+              <Label htmlFor="functionParameters">Parameters (JSON)</Label>
               <Textarea
                 id="functionParameters"
                 name="functionParameters"
@@ -224,29 +242,39 @@ export default function KnowledgeBasePage() {
                   2
                 )}
                 required
+                rows={6}
               />
+              <p className="text-sm text-muted-foreground">
+                Example: {`{
+  "name": { "type": "string", "description": "User's name" },
+  "age": { "type": "number", "description": "User's age" }
+}`}
+              </p>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="requiredParameters">
-                Required Parameters (comma-separated)
-              </Label>
+              <Label htmlFor="requiredParameters">Required Parameters</Label>
               <Input
                 id="requiredParameters"
                 name="requiredParameters"
                 defaultValue={entry?.functionParameters?.parameters?.required?.join(",")}
+                placeholder="name,age"
               />
+              <p className="text-sm text-muted-foreground">
+                Comma-separated list of required parameter names
+              </p>
             </div>
           </>
         ) : (
           <div className="grid gap-2">
-            <Label htmlFor="content">Content</Label>
+            <Label htmlFor="content">Knowledge Content</Label>
             <Textarea
               id="content"
               name="content"
-              rows={6}
               defaultValue={entry?.content}
               required
+              rows={8}
+              placeholder="Enter the knowledge base content here..."
             />
           </div>
         )}
@@ -274,8 +302,11 @@ export default function KnowledgeBasePage() {
           >
             Cancel
           </Button>
-          <Button type="submit">
+          <Button type="submit" disabled={addMutation.isPending || updateMutation.isPending}>
             {entry ? "Save Changes" : "Add Entry"}
+            {(addMutation.isPending || updateMutation.isPending) && (
+              <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+            )}
           </Button>
         </div>
       </form>
@@ -286,7 +317,7 @@ export default function KnowledgeBasePage() {
     <DashboardShell>
       <PageHeader
         title="Knowledge Base"
-        description="Manage ChatGPT knowledge and function definitions"
+        description="Manage your AI knowledge base entries and custom functions"
       />
 
       <div className="flex justify-end mt-8">
@@ -311,7 +342,14 @@ export default function KnowledgeBasePage() {
           <Card key={entry.id}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>{entry.title}</CardTitle>
+                <CardTitle className="flex items-center">
+                  {entry.type === "knowledge" ? (
+                    <Book className="mr-2 h-5 w-5" />
+                  ) : (
+                    <PlayCircle className="mr-2 h-5 w-5" />
+                  )}
+                  {entry.title}
+                </CardTitle>
                 <div className="flex items-center space-x-2">
                   <div className="text-sm text-muted-foreground">
                     {format(new Date(entry.updatedAt), "MMM d, yyyy HH:mm")}
@@ -333,14 +371,17 @@ export default function KnowledgeBasePage() {
                 <EntryForm entry={entry} />
               ) : (
                 <div className="space-y-4">
-                  <div>
-                    <span className="font-medium">Type:</span>{" "}
-                    <span className="capitalize">{entry.type}</span>
+                  <div className="flex items-center space-x-4">
+                    <div>
+                      <span className="font-medium">Type:</span>{" "}
+                      <span className="capitalize">{entry.type}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Model:</span>{" "}
+                      {entry.chatgptVersion}
+                    </div>
                   </div>
-                  <div>
-                    <span className="font-medium">ChatGPT Version:</span>{" "}
-                    {entry.chatgptVersion}
-                  </div>
+
                   {entry.type === "function" ? (
                     <>
                       <div>
@@ -353,7 +394,7 @@ export default function KnowledgeBasePage() {
                       </div>
                       <div>
                         <span className="font-medium">Parameters:</span>
-                        <pre className="mt-2 p-2 bg-gray-50 rounded-md overflow-x-auto">
+                        <pre className="mt-2 p-4 bg-slate-50 rounded-md overflow-x-auto">
                           {JSON.stringify(
                             entry.functionParameters?.parameters,
                             null,
@@ -368,85 +409,79 @@ export default function KnowledgeBasePage() {
                       <div className="mt-2 whitespace-pre-wrap">{entry.content}</div>
                     </div>
                   )}
-                  {entry.type === "function" && (
-                    <div className="mt-4 pt-4 border-t">
-                      <Tabs defaultValue="test">
-                        <TabsList>
-                          <TabsTrigger value="test">Test Function</TabsTrigger>
-                          <TabsTrigger value="result">Last Result</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="test">
-                          <form
-                            onSubmit={async (e) => {
-                              e.preventDefault();
-                              const form = e.target as HTMLFormElement;
-                              const formData = new FormData(form);
-                              const parameters: Record<string, any> = {};
+                </div>
+              )}
 
-                              for (const [key, value] of formData.entries()) {
-                                try {
-                                  parameters[key] = JSON.parse(value as string);
-                                } catch {
-                                  parameters[key] = value;
-                                }
-                              }
-
-                              try {
-                                const res = await apiRequest(
-                                  "POST",
-                                  `/api/knowledge-base/${entry.id}/execute`,
-                                  parameters
-                                );
-                                const result = await res.json();
-                                setTestResults((prev) => ({ ...prev, [entry.id]: result }));
-                                toast({
-                                  title: "Function executed",
-                                  description: "Check the results tab to see the output.",
-                                });
-                              } catch (error) {
-                                toast({
-                                  title: "Function execution failed",
-                                  description: error instanceof Error ? error.message : "Unknown error occurred",
-                                  variant: "destructive",
-                                });
-                              }
-                            }}
-                            className="space-y-4"
+              {!isEditing && entry.isActive && (
+                <div className="mt-6 pt-6 border-t">
+                  <Tabs defaultValue="test">
+                    <TabsList>
+                      <TabsTrigger value="test">Test {entry.type === "function" ? "Function" : "Knowledge"}</TabsTrigger>
+                      <TabsTrigger value="result">Last Result</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="test">
+                      {entry.type === "knowledge" ? (
+                        <div className="space-y-4">
+                          <Textarea
+                            value={testQuery}
+                            onChange={(e) => setTestQuery(e.target.value)}
+                            placeholder="Enter your question here..."
+                            rows={3}
+                          />
+                          <Button
+                            onClick={() =>
+                              testMutation.mutate({
+                                id: entry.id,
+                                type: "knowledge",
+                                query: testQuery,
+                              })
+                            }
+                            disabled={testMutation.isPending}
                           >
-                            {Object.entries(
-                              entry.functionParameters?.parameters.properties || {}
-                            ).map(([name, schema]) => (
-                              <div key={name} className="grid gap-2">
-                                <Label htmlFor={name}>{name}</Label>
-                                <Input
-                                  id={name}
-                                  name={name}
-                                  placeholder={(schema as any).description}
-                                  required={
-                                    entry.functionParameters?.parameters.required.includes(name)
-                                  }
-                                />
-                              </div>
-                            ))}
-                            <Button type="submit">Execute Function</Button>
-                          </form>
-                        </TabsContent>
-                        <TabsContent value="result">
-                          <pre className="p-4 bg-gray-50 rounded-md overflow-x-auto">
-                            {JSON.stringify(testResults[entry.id] || {}, null, 2)}
-                          </pre>
-                        </TabsContent>
-                      </Tabs>
-                    </div>
-                  )}
+                            {testMutation.isPending ? (
+                              <>
+                                Testing...
+                                <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                              </>
+                            ) : (
+                              "Test Knowledge"
+                            )}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          onClick={() =>
+                            testMutation.mutate({
+                              id: entry.id,
+                              type: "function",
+                            })
+                          }
+                          disabled={testMutation.isPending}
+                        >
+                          {testMutation.isPending ? (
+                            <>
+                              Testing...
+                              <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                            </>
+                          ) : (
+                            "Test Function"
+                          )}
+                        </Button>
+                      )}
+                    </TabsContent>
+                    <TabsContent value="result">
+                      <pre className="p-4 bg-slate-50 rounded-md overflow-x-auto">
+                        {JSON.stringify(testResults[entry.id] || {}, null, 2)}
+                      </pre>
+                    </TabsContent>
+                  </Tabs>
                 </div>
               )}
             </CardContent>
-            {isEditing !== entry.id && (
-              <CardFooter>
+            {!isEditing && (
+              <CardFooter className="space-x-2">
                 <Button
                   variant="outline"
-                  className="mr-2"
                   onClick={() => setIsEditing(entry.id)}
                 >
                   <Save className="mr-2 h-4 w-4" />
