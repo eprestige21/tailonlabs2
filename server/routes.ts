@@ -239,6 +239,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/agents/:id", async (req, res) => {
+    try {
+      if (!req.user?.businessId) {
+        return res.status(400).json({ message: "Business ID is required" });
+      }
+
+      // Verify the agent belongs to the user's business
+      const [existingAgent] = await db
+        .select()
+        .from(agents)
+        .where(
+          and(
+            eq(agents.id, parseInt(req.params.id)),
+            eq(agents.businessId, req.user.businessId)
+          )
+        );
+
+      if (!existingAgent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+
+      const [agent] = await db
+        .update(agents)
+        .set({
+          ...req.body,
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.id, parseInt(req.params.id)))
+        .returning();
+
+      res.json(agent);
+    } catch (error) {
+      console.error('Error updating agent:', error);
+      res.status(500).json({ message: "Failed to update agent" });
+    }
+  });
+
+
   // Agent functions routes
   app.get("/api/agents/:agentId/functions", async (req, res) => {
     const functions = await db

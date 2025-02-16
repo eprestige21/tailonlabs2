@@ -27,6 +27,7 @@ export default function AIAgentPage() {
   const { toast } = useToast();
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editMode, setEditMode] = useState<{ [key: number]: boolean }>({});
 
   const { data: agents = [], isLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
@@ -53,6 +54,32 @@ export default function AIAgentPage() {
     onError: (error: Error) => {
       toast({
         title: "Failed to create agent",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateAgentMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertAgent> }) => {
+      const res = await apiRequest("PATCH", `/api/agents/${id}`, data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to update agent");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agents"] });
+      setEditMode({});
+      toast({
+        title: "Agent updated",
+        description: "The AI agent has been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update agent",
         description: error.message,
         variant: "destructive",
       });
@@ -440,10 +467,90 @@ export default function AIAgentPage() {
           <Card key={agent.id} className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>{agent.name}</span>
-                <span className="text-sm font-normal text-muted-foreground">
-                  {agent.model}
-                </span>
+                {editMode[agent.id] ? (
+                  <form
+                    className="flex-1 mr-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.target as HTMLFormElement);
+                      updateAgentMutation.mutate({
+                        id: agent.id,
+                        data: {
+                          name: formData.get("name") as string,
+                          model: formData.get("model") as string,
+                          systemPrompt: formData.get("systemPrompt") as string,
+                        },
+                      });
+                    }}
+                  >
+                    <div className="space-y-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor={`name-${agent.id}`}>Name</Label>
+                        <Input
+                          id={`name-${agent.id}`}
+                          name="name"
+                          defaultValue={agent.name}
+                          required
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor={`model-${agent.id}`}>Model</Label>
+                        <Select name="model" defaultValue={agent.model}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {LLM_MODELS.map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor={`systemPrompt-${agent.id}`}>System Prompt</Label>
+                        <Textarea
+                          id={`systemPrompt-${agent.id}`}
+                          name="systemPrompt"
+                          defaultValue={agent.systemPrompt}
+                          required
+                          rows={4}
+                        />
+                      </div>
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            setEditMode((prev) => ({ ...prev, [agent.id]: false }))
+                          }
+                        >
+                          Cancel
+                        </Button>
+                        <Button type="submit">Save Changes</Button>
+                      </div>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <span>{agent.name}</span>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-normal text-muted-foreground">
+                        {agent.model}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setEditMode((prev) => ({ ...prev, [agent.id]: true }))
+                        }
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                  </>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -455,12 +562,14 @@ export default function AIAgentPage() {
                 </TabsList>
 
                 <TabsContent value="prompt">
-                  <Textarea
-                    value={agent.systemPrompt}
-                    readOnly
-                    rows={4}
-                    className="w-full mt-4"
-                  />
+                  {!editMode[agent.id] && (
+                    <Textarea
+                      value={agent.systemPrompt}
+                      readOnly
+                      rows={4}
+                      className="w-full mt-4"
+                    />
+                  )}
                 </TabsContent>
 
                 <TabsContent value="functions">
