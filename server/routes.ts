@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { businesses, knowledgeBase, usageHistory, billingTransactions, voiceSettings, users } from "@shared/schema";
+import { businesses, knowledgeBase, usageHistory, billingTransactions, voiceSettings, users, agents } from "@shared/schema";
 import { eq, and, gte, desc } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
@@ -331,6 +331,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // For now, we'll return a mock response
     res.status(501).send("Preview functionality not implemented");
   });
+
+  // Agent routes
+  app.get("/api/agents", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const agentsList = await db
+      .select()
+      .from(agents)
+      .where(eq(agents.businessId, req.user.businessId))
+      .orderBy(desc(agents.updatedAt));
+
+    res.json(agentsList);
+  });
+
+  app.post("/api/agents", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const [agent] = await db
+      .insert(agents)
+      .values({
+        ...req.body,
+        businessId: req.user.businessId,
+      })
+      .returning();
+
+    res.status(201).json(agent);
+  });
+
+  app.patch("/api/agents/:id", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const [agent] = await db
+      .update(agents)
+      .set({
+        ...req.body,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(agents.id, parseInt(req.params.id)),
+          eq(agents.businessId, req.user.businessId)
+        )
+      )
+      .returning();
+
+    if (!agent) {
+      return res.status(404).send("Agent not found");
+    }
+
+    res.json(agent);
+  });
+
+  app.post("/api/agents/:id/test", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const [agent] = await db
+      .select()
+      .from(agents)
+      .where(
+        and(
+          eq(agents.id, parseInt(req.params.id)),
+          eq(agents.businessId, req.user.businessId)
+        )
+      );
+
+    if (!agent) {
+      return res.status(404).send("Agent not found");
+    }
+
+    // In a real implementation, this would test the agent with the provided input
+    res.status(501).send("Test functionality not implemented");
+  });
+
 
   const httpServer = createServer(app);
   return httpServer;

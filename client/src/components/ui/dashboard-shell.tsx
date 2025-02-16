@@ -10,6 +10,7 @@ import {
   BookOpen,
   LogOut,
   Volume2,
+  Sparkles,
 } from "lucide-react";
 
 interface SidebarLinkProps {
@@ -45,6 +46,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     { href: "/", icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard" },
     { href: "/business", icon: <Building2 className="h-4 w-4" />, label: "Business Profile" },
     { href: "/integrations", icon: <Plug2 className="h-4 w-4" />, label: "API Integrations" },
+    { href: "/agents", icon: <Sparkles className="h-4 w-4" />, label: "AI Agents" },
     { href: "/billing", icon: <CreditCard className="h-4 w-4" />, label: "Billing" },
     { href: "/voice-settings", icon: <Volume2 className="h-4 w-4" />, label: "Voice Settings" },
     { href: "/knowledge-base", icon: <BookOpen className="h-4 w-4" />, label: "Knowledge Base" },
