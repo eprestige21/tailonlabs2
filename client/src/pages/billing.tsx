@@ -26,6 +26,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import React from 'react';
+import { Loader2 } from "lucide-react";
 
 export default function Billing() {
   const { user } = useAuth();
@@ -33,15 +34,17 @@ export default function Billing() {
   const [period, setPeriod] = React.useState("month");
   const [service, setService] = React.useState("all");
 
-  const { data: usageHistory } = useQuery<UsageHistory[]>({
+  const { data: usageHistory, isLoading: isUsageLoading } = useQuery<UsageHistory[]>({
     queryKey: ["/api/usage-history", { period, service }],
+    enabled: !!user?.businessId,
   });
 
-  const { data: transactions } = useQuery<BillingTransaction[]>({
+  const { data: transactions, isLoading: isTransactionsLoading } = useQuery<BillingTransaction[]>({
     queryKey: ["/api/billing-transactions"],
+    enabled: !!user?.businessId,
   });
 
-  const { data: business } = useQuery({
+  const { data: business, isLoading: isBusinessLoading } = useQuery({
     queryKey: ["/api/business", user?.businessId],
     enabled: !!user?.businessId,
   });
@@ -83,6 +86,16 @@ export default function Billing() {
 
     updateAutoRechargeMutation.mutate({ threshold, amount });
   };
+
+  if (isBusinessLoading || isUsageLoading || isTransactionsLoading) {
+    return (
+      <DashboardShell>
+        <div className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </DashboardShell>
+    );
+  }
 
   return (
     <DashboardShell>

@@ -117,10 +117,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).send("Business ID is required");
     }
 
+    // Get current business data
+    const [currentBusiness] = await db
+      .select()
+      .from(businesses)
+      .where(eq(businesses.id, businessId));
+
+    if (!currentBusiness) {
+      return res.status(404).send("Business not found");
+    }
+
     const [business] = await db
       .update(businesses)
       .set({
         billingInfo: {
+          ...currentBusiness.billingInfo,
           autoRechargeThreshold: threshold,
           autoRechargeAmount: amount,
         },
