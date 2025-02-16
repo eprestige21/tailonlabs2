@@ -34,26 +34,6 @@ export const businesses = pgTable("businesses", {
   }>(),
 });
 
-export const agents = pgTable("agents", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
-  name: text("name").notNull(),
-  model: text("model").notNull().default("gpt-4o"),
-  systemPrompt: text("system_prompt").notNull(),
-  isActive: boolean("is_active").notNull().default(true),
-  functions: jsonb("functions").$type<Array<{
-    name: string;
-    description: string;
-    parameters: {
-      type: string;
-      properties: Record<string, { type: string; description: string }>;
-      required: string[];
-    };
-  }>>(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
 export const usageHistory = pgTable("usage_history", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
@@ -120,14 +100,6 @@ export const insertVoiceSettingsSchema = createInsertSchema(voiceSettings).pick(
   pauseTime: true,
 });
 
-export const insertAgentSchema = createInsertSchema(agents).pick({
-  name: true,
-  model: true,
-  systemPrompt: true,
-  functions: true,
-  isActive: true,
-});
-
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Business = typeof businesses.$inferSelect;
@@ -135,5 +107,3 @@ export type UsageHistory = typeof usageHistory.$inferSelect;
 export type BillingTransaction = typeof billingTransactions.$inferSelect;
 export type VoiceSettings = typeof voiceSettings.$inferSelect;
 export type InsertVoiceSettings = z.infer<typeof insertVoiceSettingsSchema>;
-export type InsertAgent = z.infer<typeof insertAgentSchema>;
-export type Agent = typeof agents.$inferSelect;
