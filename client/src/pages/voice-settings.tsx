@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +19,6 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { InsertVoiceSettings } from "@shared/schema";
 import { Loader2, Volume2 } from "lucide-react";
-import React from "react";
 
 const AVAILABLE_VOICES = [
   { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
@@ -46,7 +46,7 @@ const LANGUAGES = [
 export default function VoiceSettings() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [previewText, setPreviewText] = React.useState(
+  const [previewText, setPreviewText] = useState(
     "Hello! This is a preview of how I will sound."
   );
 
@@ -109,16 +109,16 @@ export default function VoiceSettings() {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
-    
+
     const data: InsertVoiceSettings = {
       voiceId: formData.get("voiceId") as string,
       name: AVAILABLE_VOICES.find(v => v.id === formData.get("voiceId"))?.name || "",
       language: formData.get("language") as string,
-      stability: parseFloat(formData.get("stability") as string),
-      similarityBoost: parseFloat(formData.get("similarityBoost") as string),
-      style: parseFloat(formData.get("style") as string),
-      speakingRate: parseFloat(formData.get("speakingRate") as string),
-      pauseTime: parseFloat(formData.get("pauseTime") as string),
+      stability: formData.get("stability") as string,
+      similarityBoost: formData.get("similarityBoost") as string,
+      style: formData.get("style") as string,
+      speakingRate: formData.get("speakingRate") as string,
+      pauseTime: formData.get("pauseTime") as string,
     };
 
     updateSettingsMutation.mutate(data);
@@ -178,7 +178,7 @@ export default function VoiceSettings() {
                   <Label>Stability ({settings?.stability || "0.5"})</Label>
                   <Slider
                     name="stability"
-                    defaultValue={[settings?.stability || 0.5]}
+                    defaultValue={[settings?.stability ? parseFloat(settings.stability) : 0.5]}
                     max={1}
                     step={0.01}
                     className="w-full"
@@ -192,7 +192,7 @@ export default function VoiceSettings() {
                   <Label>Similarity Boost ({settings?.similarityBoost || "0.75"})</Label>
                   <Slider
                     name="similarityBoost"
-                    defaultValue={[settings?.similarityBoost || 0.75]}
+                    defaultValue={[settings?.similarityBoost ? parseFloat(settings.similarityBoost) : 0.75]}
                     max={1}
                     step={0.01}
                     className="w-full"
@@ -206,7 +206,7 @@ export default function VoiceSettings() {
                   <Label>Style ({settings?.style || "0.0"})</Label>
                   <Slider
                     name="style"
-                    defaultValue={[settings?.style || 0]}
+                    defaultValue={[settings?.style ? parseFloat(settings.style) : 0]}
                     max={1}
                     step={0.01}
                     className="w-full"
@@ -220,7 +220,7 @@ export default function VoiceSettings() {
                   <Label>Speaking Rate ({settings?.speakingRate || "1.0"})</Label>
                   <Slider
                     name="speakingRate"
-                    defaultValue={[settings?.speakingRate || 1]}
+                    defaultValue={[settings?.speakingRate ? parseFloat(settings.speakingRate) : 1]}
                     min={0.5}
                     max={2}
                     step={0.1}
@@ -232,7 +232,7 @@ export default function VoiceSettings() {
                   <Label>Pause Time ({settings?.pauseTime || "0.5"}s</Label>
                   <Slider
                     name="pauseTime"
-                    defaultValue={[settings?.pauseTime || 0.5]}
+                    defaultValue={[settings?.pauseTime ? parseFloat(settings.pauseTime) : 0.5]}
                     min={0}
                     max={2}
                     step={0.1}
