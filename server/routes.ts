@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { businesses, knowledgeBase, usageHistory, billingTransactions, voiceSettings } from "@shared/schema";
+import { businesses, knowledgeBase, usageHistory, billingTransactions, voiceSettings, users } from "@shared/schema";
 import { eq, and, gte, desc } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
@@ -24,10 +24,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/business", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).send("Unauthorized");
+    }
+
     const [business] = await db
       .insert(businesses)
-      .values(req.body)
+      .values({
+        ...req.body,
+        billingInfo: {
+          balance: 0,
+          autoRechargeThreshold: 10,
+          autoRechargeAmount: 50
+        }
+      })
       .returning();
+
+    // Update user with the new business ID
+    await db
+      .update(users)
+      .set({ businessId: business.id })
+      .where(eq(users.id, req.user.id));
+
     res.status(201).json(business);
   });
 

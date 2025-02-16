@@ -15,19 +15,63 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 
 export default function BusinessProfile() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
+  const { data: business } = useQuery({
+    queryKey: ["/api/business", user?.businessId],
+    enabled: !!user?.businessId,
+  });
+
   const form = useForm({
     resolver: zodResolver(insertBusinessSchema),
-    defaultValues: {
+    defaultValues: business || {
       name: "",
       description: "",
       website: "",
     },
   });
 
+  const businessMutation = useMutation({
+    mutationFn: async (data: any) => {
+      if (business) {
+        await apiRequest("PATCH", `/api/business/${business.id}`, data);
+      } else {
+        await apiRequest("POST", "/api/business", data);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/business"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      toast({
+        title: business ? "Business updated" : "Business created",
+        description: business
+          ? "Your business profile has been updated."
+          : "Your business profile has been created.",
+      });
+      if (!business) {
+        setLocation("/knowledge-base");
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const onSubmit = (data: any) => {
-    console.log(data);
+    businessMutation.mutate(data);
   };
 
   return (
@@ -83,7 +127,12 @@ export default function BusinessProfile() {
                   </FormItem>
                 )}
               />
-              <Button type="submit">Save Changes</Button>
+              <Button 
+                type="submit" 
+                disabled={businessMutation.isPending}
+              >
+                {business ? "Update Profile" : "Create Business"}
+              </Button>
             </form>
           </Form>
         </CardContent>

@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/dialog";
 import { KnowledgeBase, InsertKnowledgeBase } from "@shared/schema";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Redirect } from "wouter";
+import { Loader2 } from "lucide-react";
 
 const GPT_VERSIONS = [
   { id: "gpt-4", name: "GPT-4" },
@@ -51,8 +53,29 @@ export default function KnowledgeBasePage() {
 
   const { data: entries = [], isLoading } = useQuery<KnowledgeBase[]>({
     queryKey: ["/api/knowledge-base"],
+    enabled: true, // Removed the businessId check here.
+  });
+
+  // Get business data
+  const { data: business, isLoading: isBusinessLoading } = useQuery({
+    queryKey: ["/api/business", user?.businessId],
     enabled: !!user?.businessId,
   });
+
+  if (isLoading || isBusinessLoading) {
+    return (
+      <DashboardShell>
+        <div className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  // Redirect to business profile if no business is associated
+  if (!isLoading && !user?.businessId) {
+    return <Redirect to="/business" />;
+  }
 
   const addMutation = useMutation({
     mutationFn: async (data: InsertKnowledgeBase) => {
