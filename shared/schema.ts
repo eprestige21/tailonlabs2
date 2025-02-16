@@ -54,27 +54,6 @@ export const agents = pgTable("agents", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const knowledgeBase = pgTable("knowledge_base", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  type: text("type").notNull(), // 'knowledge', 'function'
-  chatgptVersion: text("chatgpt_version").notNull().default("gpt-4o"),
-  functionParameters: jsonb("function_parameters").$type<{
-    name: string;
-    description: string;
-    parameters: {
-      type: string;
-      properties: Record<string, { type: string; description: string }>;
-      required: string[];
-    };
-  }>(),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
 export const usageHistory = pgTable("usage_history", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
@@ -118,15 +97,6 @@ export const insertBusinessSchema = createInsertSchema(businesses).pick({
   website: true,
 });
 
-export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick({
-  title: true,
-  content: true,
-  type: true,
-  chatgptVersion: true,
-  functionParameters: true,
-  isActive: true,
-});
-
 export const insertUsageHistorySchema = createInsertSchema(usageHistory).pick({
   service: true,
   quantity: true,
@@ -161,11 +131,9 @@ export const insertAgentSchema = createInsertSchema(agents).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Business = typeof businesses.$inferSelect;
-export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
 export type UsageHistory = typeof usageHistory.$inferSelect;
 export type BillingTransaction = typeof billingTransactions.$inferSelect;
 export type VoiceSettings = typeof voiceSettings.$inferSelect;
 export type InsertVoiceSettings = z.infer<typeof insertVoiceSettingsSchema>;
-export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
 export type InsertAgent = z.infer<typeof insertAgentSchema>;
 export type Agent = typeof agents.$inferSelect;

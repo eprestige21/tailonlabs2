@@ -9,7 +9,6 @@ import Dashboard from "@/pages/dashboard";
 import BusinessProfile from "@/pages/business-profile";
 import ApiIntegrations from "@/pages/api-integrations";
 import Billing from "@/pages/billing";
-import KnowledgeBase from "@/pages/knowledge-base";
 import VoiceSettings from "@/pages/voice-settings";
 import AgentsPage from "@/pages/agents";
 
@@ -31,7 +30,6 @@ function Router() {
       <ProtectedRoute path="/integrations" component={ApiIntegrations} />
       <ProtectedRoute path="/agents" component={AgentsPage} />
       <ProtectedRoute path="/billing" component={Billing} />
-      <ProtectedRoute path="/knowledge-base" component={KnowledgeBase} />
       <ProtectedRoute path="/voice-settings" component={VoiceSettings} />
       <Route component={NotFound} />
     </Switch>

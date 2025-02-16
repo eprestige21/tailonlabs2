@@ -7,7 +7,6 @@ import {
   Building2,
   Plug2,
   CreditCard,
-  BookOpen,
   LogOut,
   Volume2,
   Sparkles,
@@ -49,7 +48,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     { href: "/agents", icon: <Sparkles className="h-4 w-4" />, label: "AI Agents" },
     { href: "/billing", icon: <CreditCard className="h-4 w-4" />, label: "Billing" },
     { href: "/voice-settings", icon: <Volume2 className="h-4 w-4" />, label: "Voice Settings" },
-    { href: "/knowledge-base", icon: <BookOpen className="h-4 w-4" />, label: "Knowledge Base" },
   ];
 
   return (

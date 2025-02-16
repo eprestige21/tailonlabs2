@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { businesses, knowledgeBase, usageHistory, billingTransactions, voiceSettings, users, agents } from "@shared/schema";
+import { businesses, usageHistory, billingTransactions, voiceSettings, users, agents } from "@shared/schema";
 import { eq, and, gte, desc } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
@@ -47,138 +47,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .where(eq(users.id, req.user.id));
 
     res.status(201).json(business);
-  });
-
-  // Knowledge base routes
-  app.get("/api/knowledge-base", async (req, res) => {
-    const entries = await db
-      .select()
-      .from(knowledgeBase)
-      .where(eq(knowledgeBase.businessId, req.user?.businessId!))
-      .orderBy(desc(knowledgeBase.updatedAt));
-    res.json(entries);
-  });
-
-  app.post("/api/knowledge-base", async (req, res) => {
-    if (!req.user?.businessId) {
-      return res.status(400).send("Business ID is required");
-    }
-
-    const [entry] = await db
-      .insert(knowledgeBase)
-      .values({
-        ...req.body,
-        businessId: req.user.businessId,
-      })
-      .returning();
-    res.status(201).json(entry);
-  });
-
-  app.patch("/api/knowledge-base/:id", async (req, res) => {
-    if (!req.user?.businessId) {
-      return res.status(400).send("Business ID is required");
-    }
-
-    const [entry] = await db
-      .update(knowledgeBase)
-      .set({
-        ...req.body,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(knowledgeBase.id, parseInt(req.params.id)),
-          eq(knowledgeBase.businessId, req.user.businessId)
-        )
-      )
-      .returning();
-
-    if (!entry) {
-      return res.status(404).send("Entry not found");
-    }
-
-    res.json(entry);
-  });
-
-  app.post("/api/knowledge-base/:id/execute", async (req, res) => {
-    if (!req.user?.businessId) {
-      return res.status(400).send("Business ID is required");
-    }
-
-    const [entry] = await db
-      .select()
-      .from(knowledgeBase)
-      .where(
-        and(
-          eq(knowledgeBase.id, parseInt(req.params.id)),
-          eq(knowledgeBase.businessId, req.user.businessId)
-        )
-      );
-
-    if (!entry) {
-      return res.status(404).send("Entry not found");
-    }
-
-    if (entry.type !== "function") {
-      return res.status(400).send("This entry is not a function");
-    }
-
-    try {
-      const result = await executeFunction(entry, req.body);
-      res.json(result);
-    } catch (error) {
-      res.status(400).json({
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-      });
-    }
-  });
-
-  app.post("/api/knowledge-base/:id/query", async (req, res) => {
-    if (!req.user?.businessId) {
-      return res.status(400).send("Business ID is required");
-    }
-
-    const [entry] = await db
-      .select()
-      .from(knowledgeBase)
-      .where(
-        and(
-          eq(knowledgeBase.id, parseInt(req.params.id)),
-          eq(knowledgeBase.businessId, req.user.businessId)
-        )
-      );
-
-    if (!entry) {
-      return res.status(404).send("Entry not found");
-    }
-
-    if (entry.type !== "knowledge") {
-      return res.status(400).send("This entry is not a knowledge base item");
-    }
-
-    try {
-      const response = await getKnowledgeBaseResponse(entry, req.body.query);
-      res.json({ response });
-    } catch (error) {
-      res.status(400).json({
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-      });
-    }
-  });
-
-  app.post("/api/knowledge-base/validate-function", async (req, res) => {
-    if (!req.user?.businessId) {
-      return res.status(400).send("Business ID is required");
-    }
-
-    try {
-      const result = await validateFunctionDefinition(req.body);
-      res.json(result);
-    } catch (error) {
-      res.status(400).json({
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-      });
-    }
   });
 
   // Usage history routes
@@ -411,7 +279,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // In a real implementation, this would test the agent with the provided input
     res.status(501).send("Test functionality not implemented");
   });
-
 
   const httpServer = createServer(app);
   return httpServer;
