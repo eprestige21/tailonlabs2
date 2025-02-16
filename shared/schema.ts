@@ -61,6 +61,19 @@ export const billingTransactions = pgTable("billing_transactions", {
   status: text("status").notNull(), // 'pending', 'completed', 'failed'
 });
 
+export const voiceSettings = pgTable("voice_settings", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id),
+  voiceId: text("voice_id").notNull(),
+  name: text("name").notNull(),
+  language: text("language").notNull(),
+  stability: decimal("stability").notNull().default("0.5"),
+  similarityBoost: decimal("similarity_boost").notNull().default("0.75"),
+  style: decimal("style").notNull().default("0.0"),
+  speakingRate: decimal("speaking_rate").notNull().default("1.0"),
+  pauseTime: decimal("pause_time").notNull().default("0.5"),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -90,9 +103,22 @@ export const insertBillingTransactionSchema = createInsertSchema(billingTransact
   description: true,
 });
 
+export const insertVoiceSettingsSchema = createInsertSchema(voiceSettings).pick({
+  voiceId: true,
+  name: true,
+  language: true,
+  stability: true,
+  similarityBoost: true,
+  style: true,
+  speakingRate: true,
+  pauseTime: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Business = typeof businesses.$inferSelect;
 export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
 export type UsageHistory = typeof usageHistory.$inferSelect;
 export type BillingTransaction = typeof billingTransactions.$inferSelect;
+export type VoiceSettings = typeof voiceSettings.$inferSelect;
+export type InsertVoiceSettings = z.infer<typeof insertVoiceSettingsSchema>;

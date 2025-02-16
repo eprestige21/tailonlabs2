@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { businesses, knowledgeBase, usageHistory, billingTransactions } from "@shared/schema";
+import { businesses, knowledgeBase, usageHistory, billingTransactions, voiceSettings } from "@shared/schema";
 import { eq, and, gte } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
@@ -140,6 +140,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .returning();
 
     res.json(business);
+  });
+
+  // Voice settings routes
+  app.get("/api/voice-settings", async (req, res) => {
+    const businessId = req.user?.businessId;
+
+    if (!businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const [settings] = await db
+      .select()
+      .from(voiceSettings)
+      .where(eq(voiceSettings.businessId, businessId));
+
+    res.json(settings);
+  });
+
+  app.post("/api/voice-settings", async (req, res) => {
+    const businessId = req.user?.businessId;
+
+    if (!businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    const [existingSettings] = await db
+      .select()
+      .from(voiceSettings)
+      .where(eq(voiceSettings.businessId, businessId));
+
+    if (existingSettings) {
+      const [settings] = await db
+        .update(voiceSettings)
+        .set({ ...req.body })
+        .where(eq(voiceSettings.businessId, businessId))
+        .returning();
+      res.json(settings);
+    } else {
+      const [settings] = await db
+        .insert(voiceSettings)
+        .values({ ...req.body, businessId })
+        .returning();
+      res.json(settings);
+    }
+  });
+
+  app.post("/api/voice-settings/preview", async (req, res) => {
+    const businessId = req.user?.businessId;
+
+    if (!businessId) {
+      return res.status(400).send("Business ID is required");
+    }
+
+    // In a real implementation, this would call the ElevenLabs API
+    // For now, we'll return a mock response
+    res.status(501).send("Preview functionality not implemented");
   });
 
   const httpServer = createServer(app);

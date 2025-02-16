@@ -10,6 +10,7 @@ import BusinessProfile from "@/pages/business-profile";
 import ApiIntegrations from "@/pages/api-integrations";
 import Billing from "@/pages/billing";
 import KnowledgeBase from "@/pages/knowledge-base";
+import VoiceSettings from "@/pages/voice-settings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,6 +30,7 @@ function Router() {
       <ProtectedRoute path="/integrations" component={ApiIntegrations} />
       <ProtectedRoute path="/billing" component={Billing} />
       <ProtectedRoute path="/knowledge-base" component={KnowledgeBase} />
+      <ProtectedRoute path="/voice-settings" component={VoiceSettings} />
       <Route component={NotFound} />
     </Switch>
   );
