@@ -19,18 +19,70 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { UsageHistory, BillingTransaction } from "@shared/schema";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import React from 'react';
 
 export default function Billing() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [period, setPeriod] = React.useState("month");
+  const [service, setService] = React.useState("all");
+
   const { data: usageHistory } = useQuery<UsageHistory[]>({
-    queryKey: ["/api/usage-history"],
+    queryKey: ["/api/usage-history", { period, service }],
   });
 
   const { data: transactions } = useQuery<BillingTransaction[]>({
     queryKey: ["/api/billing-transactions"],
   });
+
+  const { data: business } = useQuery({
+    queryKey: ["/api/business", user?.businessId],
+    enabled: !!user?.businessId,
+  });
+
+  const updateAutoRechargeMutation = useMutation({
+    mutationFn: async (data: { threshold: number; amount: number }) => {
+      await apiRequest("POST", "/api/billing/auto-recharge", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/business", user?.businessId] });
+      toast({
+        title: "Settings updated",
+        description: "Your auto-recharge settings have been saved.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update settings",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAutoRechargeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const threshold = parseFloat(form.threshold.value);
+    const amount = parseFloat(form.amount.value);
+
+    if (isNaN(threshold) || isNaN(amount)) {
+      toast({
+        title: "Invalid input",
+        description: "Please enter valid numbers for threshold and amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateAutoRechargeMutation.mutate({ threshold, amount });
+  };
 
   return (
     <DashboardShell>
@@ -49,16 +101,19 @@ export default function Billing() {
             <div className="grid gap-6">
               <div className="flex items-center justify-between">
                 <span className="font-medium">Current Balance</span>
-                <span className="text-2xl font-bold">$500.00</span>
+                <span className="text-2xl font-bold">
+                  ${business?.billingInfo?.balance?.toFixed(2) ?? "0.00"}
+                </span>
               </div>
 
-              <div className="space-y-4">
+              <form onSubmit={handleAutoRechargeSubmit} className="space-y-4">
                 <div className="grid gap-2">
                   <Label htmlFor="threshold">Auto-recharge Threshold</Label>
                   <Input
                     id="threshold"
+                    name="threshold"
                     type="number"
-                    placeholder="100"
+                    defaultValue={business?.billingInfo?.autoRechargeThreshold}
                     className="max-w-xs"
                   />
                   <p className="text-sm text-muted-foreground">
@@ -70,8 +125,9 @@ export default function Billing() {
                   <Label htmlFor="amount">Auto-recharge Amount</Label>
                   <Input
                     id="amount"
+                    name="amount"
                     type="number"
-                    placeholder="500"
+                    defaultValue={business?.billingInfo?.autoRechargeAmount}
                     className="max-w-xs"
                   />
                   <p className="text-sm text-muted-foreground">
@@ -79,8 +135,14 @@ export default function Billing() {
                   </p>
                 </div>
 
-                <Button className="mt-4">Save Auto-recharge Settings</Button>
-              </div>
+                <Button 
+                  type="submit" 
+                  className="mt-4"
+                  disabled={updateAutoRechargeMutation.isPending}
+                >
+                  Save Auto-recharge Settings
+                </Button>
+              </form>
             </div>
           </CardContent>
         </Card>
@@ -116,7 +178,10 @@ export default function Billing() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Usage History</CardTitle>
             <div className="flex items-center gap-4">
-              <Select defaultValue="all">
+              <Select 
+                value={service} 
+                onValueChange={setService}
+              >
                 <SelectTrigger className="w-32">
                   <SelectValue placeholder="Service" />
                 </SelectTrigger>
@@ -128,7 +193,10 @@ export default function Billing() {
                   <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
                 </SelectContent>
               </Select>
-              <Select defaultValue="month">
+              <Select 
+                value={period} 
+                onValueChange={setPeriod}
+              >
                 <SelectTrigger className="w-32">
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
