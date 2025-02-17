@@ -36,15 +36,24 @@ const SERVICES = [
 
 const UsageStatsPage = () => {
   const [period, setPeriod] = useState("today");
-  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: new Date(),
+    to: new Date(),
+  });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const { data: usageData, isLoading } = useQuery({
-    queryKey: ["/api/usage-history", period, date?.toISOString()],
+    queryKey: ["/api/usage-history", period, dateRange.from?.toISOString(), dateRange.to?.toISOString()],
     queryFn: async () => {
       const params = new URLSearchParams({
         period,
-        ...(date && { date: date.toISOString() }),
+        ...(period === "custom" && dateRange.from && dateRange.to && {
+          from: dateRange.from.toISOString(),
+          to: dateRange.to.toISOString(),
+        }),
       });
       const response = await fetch(`/api/usage-history?${params}`);
       if (!response.ok) {
@@ -89,23 +98,43 @@ const UsageStatsPage = () => {
               <Button
                 variant="outline"
                 className={cn(
-                  "w-[240px] justify-start text-left font-normal",
-                  !date && "text-muted-foreground"
+                  "w-[300px] justify-start text-left font-normal",
+                  !dateRange.from && "text-muted-foreground"
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {date ? format(date, "PPP") : "Pick a date"}
+                {dateRange.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "LLL dd, y")} -{" "}
+                      {format(dateRange.to, "LLL dd, y")}
+                    </>
+                  ) : (
+                    format(dateRange.from, "LLL dd, y")
+                  )
+                ) : (
+                  "Pick a date range"
+                )}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
-                mode="single"
-                selected={date}
-                onSelect={(date) => {
-                  setDate(date);
-                  setIsCalendarOpen(false);
-                }}
                 initialFocus
+                mode="range"
+                defaultMonth={dateRange.from}
+                selected={{
+                  from: dateRange.from,
+                  to: dateRange.to,
+                }}
+                onSelect={(range) => {
+                  if (range) {
+                    setDateRange(range);
+                    if (range.from && range.to) {
+                      setIsCalendarOpen(false);
+                    }
+                  }
+                }}
+                numberOfMonths={2}
               />
             </PopoverContent>
           </Popover>

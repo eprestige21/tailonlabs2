@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { businesses, agents, agentFunctions, knowledgeBase, usageHistory, billingTransactions, voiceSettings, users } from "@shared/schema";
-import { eq, and, gte, desc } from "drizzle-orm";
+import { eq, and, gte, desc, lte } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
 
@@ -56,7 +56,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Usage history routes
   app.get("/api/usage-history", async (req, res) => {
-    const { period, date } = req.query;
+    const { period, from, to } = req.query;
     const businessId = req.user?.businessId;
 
     if (!businessId) {
@@ -64,12 +64,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     let startDate = new Date();
+    let endDate = new Date();
+
     switch (period) {
       case "today":
         startDate = startOfDay(new Date());
         break;
       case "yesterday":
         startDate = startOfDay(subDays(new Date(), 1));
+        endDate = startOfDay(new Date());
         break;
       case "week":
         startDate = startOfDay(subDays(new Date(), 7));
@@ -78,7 +81,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startDate = startOfDay(subMonths(new Date(), 1));
         break;
       case "custom":
-        startDate = startOfDay(new Date(date as string));
+        if (!from || !to) {
+          return res.status(400).send("From and to dates are required for custom range");
+        }
+        startDate = startOfDay(new Date(from as string));
+        endDate = startOfDay(new Date(to as string));
         break;
       default:
         startDate = startOfDay(new Date()); // Default to today
@@ -90,7 +97,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .where(
         and(
           eq(usageHistory.businessId, businessId),
-          gte(usageHistory.timestamp, startDate)
+          gte(usageHistory.timestamp, startDate),
+          period === "custom"
+            ? lte(usageHistory.timestamp, endDate)
+            : undefined
         )
       );
 
