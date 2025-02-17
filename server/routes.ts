@@ -6,6 +6,7 @@ import { businesses, agents, agentFunctions, knowledgeBase, usageHistory, billin
 import { eq, and, gte, desc, lte } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
+import { hash } from "bcrypt";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Ensure auth is set up first
@@ -424,6 +425,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error exporting knowledge base:', error);
       res.status(500).json({ message: "Failed to export knowledge base" });
     }
+  });
+
+  // User management routes
+  app.get("/api/users", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    const usersList = await db
+      .select()
+      .from(users)
+      .where(eq(users.businessId, req.user.businessId));
+
+    res.json(usersList);
+  });
+
+  app.post("/api/users", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    const { username, password, role = "user" } = req.body;
+    const hashedPassword = await hash(password, 10);
+
+    try {
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          username,
+          password: hashedPassword,
+          role,
+          businessId: req.user.businessId,
+        })
+        .returning();
+
+      res.status(201).json(newUser);
+    } catch (error: any) {
+      if (error.code === "23505") { // Unique violation
+        res.status(400).json({ message: "Username already exists" });
+      } else {
+        res.status(500).json({ message: "Failed to create user" });
+      }
+    }
+  });
+
+  app.patch("/api/users/:id", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    const userId = parseInt(req.params.id);
+    const { username, password, role } = req.body;
+
+    // Verify user belongs to the business
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.id, userId),
+          eq(users.businessId, req.user.businessId)
+        )
+      );
+
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    try {
+      const updateData: Partial<typeof users.$inferInsert> = {};
+      if (username) updateData.username = username;
+      if (password) updateData.password = await hash(password, 10);
+      if (role) updateData.role = role;
+
+      const [updatedUser] = await db
+        .update(users)
+        .set(updateData)
+        .where(eq(users.id, userId))
+        .returning();
+
+      res.json(updatedUser);
+    } catch (error: any) {
+      if (error.code === "23505") {
+        res.status(400).json({ message: "Username already exists" });
+      } else {
+        res.status(500).json({ message: "Failed to update user" });
+      }
+    }
+  });
+
+  app.delete("/api/users/:id", async (req, res) => {
+    if (!req.user?.businessId) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    const userId = parseInt(req.params.id);
+
+    // Verify user belongs to the business and is not the current user
+    const [userToDelete] = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.id, userId),
+          eq(users.businessId, req.user.businessId)
+        )
+      );
+
+    if (!userToDelete) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (userToDelete.id === req.user.id) {
+      return res.status(400).json({ message: "Cannot delete your own account" });
+    }
+
+    await db
+      .delete(users)
+      .where(eq(users.id, userId));
+
+    res.status(204).send();
   });
 
   const httpServer = createServer(app);

@@ -12,6 +12,7 @@ import {
   Brain,
   BarChart3,
   Activity,
+  Users,
 } from "lucide-react";
 
 interface SidebarLinkProps {
@@ -24,17 +25,16 @@ interface SidebarLinkProps {
 function SidebarLink({ href, icon, children, active }: SidebarLinkProps) {
   return (
     <Link href={href}>
-      <a
+      <Button
+        variant="ghost"
         className={cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-          active
-            ? "bg-accent text-accent-foreground"
-            : "hover:bg-accent hover:text-accent-foreground"
+          "w-full justify-start",
+          active && "bg-accent text-accent-foreground"
         )}
       >
         {icon}
-        {children}
-      </a>
+        <span className="ml-2">{children}</span>
+      </Button>
     </Link>
   );
 }
@@ -46,6 +46,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const links = [
     { href: "/", icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard" },
     { href: "/business", icon: <Building2 className="h-4 w-4" />, label: "Business Profile" },
+    { href: "/users", icon: <Users className="h-4 w-4" />, label: "Users" },
     { href: "/integrations", icon: <Plug2 className="h-4 w-4" />, label: "API Integrations" },
     { href: "/ai-agent", icon: <Brain className="h-4 w-4" />, label: "AI Agent" },
     { href: "/analytics", icon: <BarChart3 className="h-4 w-4" />, label: "Analytics" },
