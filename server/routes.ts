@@ -9,6 +9,21 @@ import { subDays, subMonths, subYears, startOfDay } from "date-fns";
 import { hash } from "bcrypt";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Add health check endpoint for deployment monitoring
+  app.get("/api/health", (req, res) => {
+    const healthcheck = {
+      uptime: process.uptime(),
+      status: "OK",
+      timestamp: Date.now()
+    };
+    try {
+      res.send(healthcheck);
+    } catch (error) {
+      healthcheck.status = "ERROR";
+      res.status(503).send(healthcheck);
+    }
+  });
+
   // Ensure auth is set up first
   setupAuth(app);
 

@@ -1,0 +1,32 @@
+{
+  "name": "ai-agent-platform",
+  "environment": {
+    "production": {
+      "port": 5000,
+      "host": "0.0.0.0",
+      "database": {
+        "max_connections": 20,
+        "idle_timeout": 10000
+      }
+    },
+    "development": {
+      "port": 5000,
+      "host": "0.0.0.0",
+      "database": {
+        "max_connections": 5,
+        "idle_timeout": 1000
+      }
+    }
+  },
+  "build": {
+    "commands": [
+      "npm run build",
+      "npm run db:push"
+    ],
+    "output": "dist"
+  },
+  "healthCheck": {
+    "path": "/api/health",
+    "interval": 30000
+  }
+}
