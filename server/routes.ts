@@ -154,8 +154,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .set({
         billingInfo: {
           ...currentBusiness.billingInfo,
-          autoRechargeThreshold: threshold,
-          autoRechargeAmount: amount,
+          balance: currentBusiness.billingInfo?.balance ?? 0,
+          autoRechargeThreshold: Number(threshold),
+          autoRechargeAmount: Number(amount),
         },
       })
       .where(eq(businesses.id, businessId))

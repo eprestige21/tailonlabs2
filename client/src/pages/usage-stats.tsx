@@ -127,11 +127,11 @@ const UsageStatsPage = () => {
                   to: dateRange.to,
                 }}
                 onSelect={(range) => {
-                  if (range) {
-                    setDateRange(range);
-                    if (range.from && range.to) {
-                      setIsCalendarOpen(false);
-                    }
+                  if (range?.from && range?.to) {
+                    setDateRange({ from: range.from, to: range.to });
+                    setIsCalendarOpen(false);
+                  } else if (range?.from) {
+                    setDateRange({ ...dateRange, from: range.from });
                   }
                 }}
                 numberOfMonths={2}

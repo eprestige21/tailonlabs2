@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { UsageHistory, BillingTransaction } from "@shared/schema";
+import { UsageHistory, BillingTransaction, Business } from "@shared/schema";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -44,7 +44,7 @@ export default function Billing() {
     enabled: !!user?.businessId,
   });
 
-  const { data: business, isLoading: isBusinessLoading } = useQuery({
+  const { data: business, isLoading: isBusinessLoading } = useQuery<Business>({
     queryKey: ["/api/business", user?.businessId],
     enabled: !!user?.businessId,
   });
