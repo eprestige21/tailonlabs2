@@ -32,7 +32,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { SiApple, SiPaypal, SiVenmo } from "react-icons/si";
 import { Elements } from "@stripe/react-stripe-js";
 
-// Initialize Stripe
+// Initialize Stripe in test mode
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 type PaymentMethod = 'card' | 'apple_pay' | 'paypal' | 'venmo';
@@ -102,7 +102,7 @@ function PaymentMethodForm({ method }: { method: PaymentMethod }) {
     } catch (error) {
       toast({
         title: "Payment failed",
-        description: "An unexpected error occurred",
+        description: "An unexpected error occurred. Please try again later.",
         variant: "destructive",
       });
     } finally {
@@ -112,6 +112,12 @@ function PaymentMethodForm({ method }: { method: PaymentMethod }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="bg-muted/50 p-4 rounded-lg mb-4">
+        <h3 className="font-medium mb-2">Test Card Details:</h3>
+        <p className="text-sm text-muted-foreground">Card: 4242 4242 4242 4242</p>
+        <p className="text-sm text-muted-foreground">Expiry: Any future date</p>
+        <p className="text-sm text-muted-foreground">CVC: Any 3 digits</p>
+      </div>
       <PaymentElement />
       <Button
         type="submit"
@@ -150,29 +156,6 @@ export default function Billing() {
     enabled: !!user?.businessId,
   });
 
-  React.useEffect(() => {
-    // Initialize client secret when component mounts
-    const initializePayment = async () => {
-      try {
-        const response = await apiRequest("POST", "/api/create-payment-intent", {
-          amount: 50,
-          paymentMethodType: selectedPaymentMethod,
-        });
-        const { clientSecret } = await response.json();
-        setClientSecret(clientSecret);
-      } catch (error) {
-        toast({
-          title: "Error initializing payment",
-          description: "Failed to set up payment form",
-          variant: "destructive",
-        });
-      }
-    };
-
-    if (user?.businessId) {
-      initializePayment();
-    }
-  }, [selectedPaymentMethod, user?.businessId, toast]);
 
   const updateAutoRechargeMutation = useMutation({
     mutationFn: async (data: { threshold: number; amount: number }) => {
@@ -221,30 +204,6 @@ export default function Billing() {
       </DashboardShell>
     );
   }
-
-  const paymentFormSection = clientSecret ? (
-    <Elements
-      stripe={stripePromise}
-      options={{
-        clientSecret,
-        appearance: {
-          theme: 'stripe',
-        },
-      }}
-    >
-      <PaymentMethodSelector
-        selected={selectedPaymentMethod}
-        onSelect={setSelectedPaymentMethod}
-      />
-      <div className="mt-6">
-        <PaymentMethodForm method={selectedPaymentMethod} />
-      </div>
-    </Elements>
-  ) : (
-    <div className="flex items-center justify-center py-8">
-      <Loader2 className="h-8 w-8 animate-spin" />
-    </div>
-  );
 
   return (
     <DashboardShell>
@@ -315,7 +274,29 @@ export default function Billing() {
             <CardTitle>Payment Method</CardTitle>
           </CardHeader>
           <CardContent>
-            {paymentFormSection}
+            <PaymentMethodSelector
+              selected={selectedPaymentMethod}
+              onSelect={setSelectedPaymentMethod}
+            />
+            {clientSecret ? (
+              <div className="mt-6">
+                <Elements
+                  stripe={stripePromise}
+                  options={{
+                    clientSecret,
+                    appearance: {
+                      theme: 'stripe',
+                    },
+                  }}
+                >
+                  <PaymentMethodForm method={selectedPaymentMethod} />
+                </Elements>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            )}
           </CardContent>
         </Card>
 
