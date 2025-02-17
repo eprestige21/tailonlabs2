@@ -107,7 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Aggregate usage by service
     const usage = history.reduce((acc, record) => {
       const service = record.service.toLowerCase();
-      acc[service] = (acc[service] || 0) + record.amount;
+      acc[service] = (acc[service] || 0) + Number(record.quantity);
       return acc;
     }, {} as Record<string, number>);
 
