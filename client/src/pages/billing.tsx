@@ -26,120 +26,13 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import React from 'react';
-import { Loader2, CreditCard } from "lucide-react";
-import { useStripe, useElements, PaymentElement } from "@stripe/react-stripe-js";
-import { loadStripe } from "@stripe/stripe-js";
-import { SiApple, SiPaypal, SiVenmo } from "react-icons/si";
-import { Elements } from "@stripe/react-stripe-js";
-
-// Initialize Stripe in test mode
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
-
-type PaymentMethod = 'card' | 'apple_pay' | 'paypal' | 'venmo';
-
-function PaymentMethodSelector({ selected, onSelect }: {
-  selected: PaymentMethod;
-  onSelect: (method: PaymentMethod) => void
-}) {
-  const methods = [
-    { id: 'card' as PaymentMethod, label: 'Credit Card', icon: <CreditCard className="h-5 w-5" /> },
-    { id: 'apple_pay' as PaymentMethod, label: 'Apple Pay', icon: <SiApple className="h-5 w-5" /> },
-    { id: 'paypal' as PaymentMethod, label: 'PayPal', icon: <SiPaypal className="h-5 w-5" /> },
-    { id: 'venmo' as PaymentMethod, label: 'Venmo', icon: <SiVenmo className="h-5 w-5" /> },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 gap-4">
-      {methods.map(({ id, label, icon }) => (
-        <Button
-          key={id}
-          variant={selected === id ? "default" : "outline"}
-          className="flex items-center gap-2 h-16"
-          onClick={() => onSelect(id)}
-        >
-          {icon}
-          <span>{label}</span>
-        </Button>
-      ))}
-    </div>
-  );
-}
-
-function PaymentMethodForm({ method }: { method: PaymentMethod }) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = React.useState(false);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!stripe || !elements) return;
-
-    setIsLoading(true);
-    try {
-      // Create Payment Intent
-      const response = await apiRequest("POST", "/api/create-payment-intent", {
-        amount: 50, // This amount should come from your form
-        paymentMethodType: method,
-      });
-      const { clientSecret } = await response.json();
-
-      const { error } = await stripe.confirmPayment({
-        elements,
-        confirmParams: {
-          return_url: `${window.location.origin}/billing/success`,
-        },
-        clientSecret,
-      });
-
-      if (error) {
-        toast({
-          title: "Payment failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Payment failed",
-        description: "An unexpected error occurred. Please try again later.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="bg-muted/50 p-4 rounded-lg mb-4">
-        <h3 className="font-medium mb-2">Test Card Details:</h3>
-        <p className="text-sm text-muted-foreground">Card: 4242 4242 4242 4242</p>
-        <p className="text-sm text-muted-foreground">Expiry: Any future date</p>
-        <p className="text-sm text-muted-foreground">CVC: Any 3 digits</p>
-      </div>
-      <PaymentElement />
-      <Button
-        type="submit"
-        disabled={!stripe || isLoading}
-        className="w-full"
-      >
-        {isLoading ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : null}
-        Pay Now
-      </Button>
-    </form>
-  );
-}
+import { Loader2 } from "lucide-react";
 
 export default function Billing() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [period, setPeriod] = React.useState("month");
   const [service, setService] = React.useState("all");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = React.useState<PaymentMethod>('card');
-  const [clientSecret, setClientSecret] = React.useState<string>();
 
   const { data: usageHistory, isLoading: isUsageLoading } = useQuery<UsageHistory[]>({
     queryKey: ["/api/usage-history", { period, service }],
@@ -155,7 +48,6 @@ export default function Billing() {
     queryKey: ["/api/business", user?.businessId],
     enabled: !!user?.businessId,
   });
-
 
   const updateAutoRechargeMutation = useMutation({
     mutationFn: async (data: { threshold: number; amount: number }) => {
@@ -256,8 +148,8 @@ export default function Billing() {
                   </p>
                 </div>
 
-                <Button
-                  type="submit"
+                <Button 
+                  type="submit" 
                   className="mt-4"
                   disabled={updateAutoRechargeMutation.isPending}
                 >
@@ -274,29 +166,23 @@ export default function Billing() {
             <CardTitle>Payment Method</CardTitle>
           </CardHeader>
           <CardContent>
-            <PaymentMethodSelector
-              selected={selectedPaymentMethod}
-              onSelect={setSelectedPaymentMethod}
-            />
-            {clientSecret ? (
-              <div className="mt-6">
-                <Elements
-                  stripe={stripePromise}
-                  options={{
-                    clientSecret,
-                    appearance: {
-                      theme: 'stripe',
-                    },
-                  }}
-                >
-                  <PaymentMethodForm method={selectedPaymentMethod} />
-                </Elements>
+            <form className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="card-number">Card Number</Label>
+                <Input id="card-number" placeholder="4242 4242 4242 4242" />
               </div>
-            ) : (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="expiry">Expiry Date</Label>
+                  <Input id="expiry" placeholder="MM/YY" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="cvc">CVC</Label>
+                  <Input id="cvc" placeholder="123" />
+                </div>
               </div>
-            )}
+              <Button>Update Payment Method</Button>
+            </form>
           </CardContent>
         </Card>
 
@@ -305,8 +191,8 @@ export default function Billing() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Usage History</CardTitle>
             <div className="flex items-center gap-4">
-              <Select
-                value={service}
+              <Select 
+                value={service} 
                 onValueChange={setService}
               >
                 <SelectTrigger className="w-32">
@@ -320,8 +206,8 @@ export default function Billing() {
                   <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
                 </SelectContent>
               </Select>
-              <Select
-                value={period}
+              <Select 
+                value={period} 
                 onValueChange={setPeriod}
               >
                 <SelectTrigger className="w-32">

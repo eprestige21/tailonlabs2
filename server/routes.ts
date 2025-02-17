@@ -6,8 +6,6 @@ import { businesses, agents, agentFunctions, knowledgeBase, usageHistory, billin
 import { eq, and, gte, desc } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
-import Stripe from "stripe";
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
@@ -405,86 +403,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error exporting knowledge base:', error);
       res.status(500).json({ message: "Failed to export knowledge base" });
     }
-  });
-
-  // Payment Intent creation endpoint
-  app.post("/api/create-payment-intent", async (req, res) => {
-    if (!req.user?.businessId) {
-      return res.status(400).json({ message: "Business ID is required" });
-    }
-
-    try {
-      const { amount, paymentMethodType } = req.body;
-
-      // Create a PaymentIntent with the order amount and currency
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(amount * 100), // Convert to cents
-        currency: "usd",
-        payment_method_types: [paymentMethodType],
-        metadata: {
-          businessId: req.user.businessId.toString(),
-        },
-      });
-
-      res.json({
-        clientSecret: paymentIntent.client_secret,
-      });
-    } catch (error) {
-      console.error("Error creating payment intent:", error);
-      res.status(500).json({ message: "Failed to create payment intent" });
-    }
-  });
-
-  // Payment webhook endpoint
-  app.post("/api/webhook/stripe", async (req, res) => {
-    const sig = req.headers["stripe-signature"];
-    let event;
-
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        sig as string,
-        process.env.STRIPE_WEBHOOK_SECRET!
-      );
-    } catch (err) {
-      console.error("Webhook signature verification failed:", err);
-      return res.status(400).send("Webhook signature verification failed");
-    }
-
-    if (event.type === "payment_intent.succeeded") {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const businessId = parseInt(paymentIntent.metadata.businessId);
-
-      // Update business balance
-      const amount = paymentIntent.amount / 100; // Convert from cents
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId));
-
-      if (business) {
-        await db
-          .update(businesses)
-          .set({
-            billingInfo: {
-              ...business.billingInfo,
-              balance: (business.billingInfo?.balance || 0) + amount,
-            },
-          })
-          .where(eq(businesses.id, businessId));
-
-        // Record the transaction
-        await db.insert(billingTransactions).values({
-          businessId,
-          type: "payment",
-          amount,
-          status: "completed",
-          timestamp: new Date(),
-        });
-      }
-    }
-
-    res.json({ received: true });
   });
 
   const httpServer = createServer(app);
