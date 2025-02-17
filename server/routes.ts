@@ -8,10 +8,15 @@ import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Ensure auth is set up first
   setupAuth(app);
 
   // Business profile routes
   app.get("/api/business/:id", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).send("Unauthorized");
+    }
+
     const [business] = await db
       .select()
       .from(businesses)
