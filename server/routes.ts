@@ -430,7 +430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User management routes
   app.get("/api/users", async (req, res) => {
     if (!req.user?.businessId) {
-      return res.status(401).send("Unauthorized");
+      return res.status(401).json({ message: "Unauthorized - No business association" });
     }
 
     const usersList = await db
@@ -442,14 +442,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/users", async (req, res) => {
-    if (!req.user?.businessId) {
-      return res.status(401).send("Unauthorized");
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized - Not logged in" });
+    }
+
+    if (!req.user.businessId) {
+      return res.status(401).json({ message: "Unauthorized - No business association" });
     }
 
     const { username, password, role = "user" } = req.body;
-    const hashedPassword = await hash(password, 10);
 
     try {
+      const hashedPassword = await hash(password, 10);
       const [newUser] = await db
         .insert(users)
         .values({
@@ -462,6 +466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json(newUser);
     } catch (error: any) {
+      console.error('Error creating user:', error);
       if (error.code === "23505") { // Unique violation
         res.status(400).json({ message: "Username already exists" });
       } else {
