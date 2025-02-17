@@ -56,7 +56,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Usage history routes
   app.get("/api/usage-history", async (req, res) => {
-    const { service, period } = req.query;
+    const { period, date } = req.query;
     const businessId = req.user?.businessId;
 
     if (!businessId) {
@@ -65,7 +65,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     let startDate = new Date();
     switch (period) {
-      case "day":
+      case "today":
+        startDate = startOfDay(new Date());
+        break;
+      case "yesterday":
         startDate = startOfDay(subDays(new Date(), 1));
         break;
       case "week":
@@ -74,14 +77,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       case "month":
         startDate = startOfDay(subMonths(new Date(), 1));
         break;
-      case "year":
-        startDate = startOfDay(subYears(new Date(), 1));
+      case "custom":
+        startDate = startOfDay(new Date(date as string));
         break;
       default:
-        startDate = startOfDay(subMonths(new Date(), 1)); // Default to last month
+        startDate = startOfDay(new Date()); // Default to today
     }
 
-    const query = db
+    const history = await db
       .select()
       .from(usageHistory)
       .where(
@@ -91,12 +94,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         )
       );
 
-    if (service && service !== "all") {
-      query.where(eq(usageHistory.service, service));
-    }
+    // Aggregate usage by service
+    const usage = history.reduce((acc, record) => {
+      const service = record.service.toLowerCase();
+      acc[service] = (acc[service] || 0) + record.amount;
+      return acc;
+    }, {} as Record<string, number>);
 
-    const history = await query;
-    res.json(history);
+    res.json(usage);
   });
 
   // Billing transaction routes
