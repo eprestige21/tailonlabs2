@@ -142,10 +142,13 @@ export default function AgentsPage() {
 
     const data: InsertAgent = {
       name: formData.get("name") as string,
+      description: formData.get("description") as string,
       model: formData.get("model") as string,
       systemPrompt: formData.get("systemPrompt") as string,
       isActive: formData.get("isActive") === "true",
-      functions: [],
+      personality: "professional",
+      tone: "formal",
+      temperature: 0.7,
     };
 
     if (id) {
@@ -167,6 +170,11 @@ export default function AgentsPage() {
             placeholder="Customer Support Agent"
             required 
           />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="description">Description</Label>
+          <Textarea id="description" name="description" defaultValue={agent?.description} placeholder="Enter a brief description for your agent" rows={3} />
         </div>
 
         <div className="grid gap-2">
