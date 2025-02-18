@@ -8,6 +8,8 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: text("role").notNull().default("user"),
   businessId: integer("business_id").references(() => businesses.id),
+  resetToken: text("reset_token"),
+  resetTokenExpires: timestamp("reset_token_expires"),
 });
 
 export const businesses = pgTable("businesses", {

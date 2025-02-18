@@ -11,6 +11,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  storeResetToken(userId: number, token: string, expires: Date): Promise<void>;
   sessionStore: session.Store;
 }
 
@@ -40,6 +41,13 @@ export class DatabaseStorage implements IStorage {
       .values(insertUser)
       .returning();
     return user;
+  }
+
+  async storeResetToken(userId: number, token: string, expires: Date): Promise<void> {
+    await db
+      .update(users)
+      .set({ resetToken: token, resetTokenExpires: expires })
+      .where(eq(users.id, userId));
   }
 }
 
