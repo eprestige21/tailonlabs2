@@ -7,6 +7,7 @@ import { eq, and, gte, desc, lte } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
 import { hash } from "bcrypt";
+import { deploymentManager } from "./deploy";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add health check endpoint for deployment monitoring
@@ -14,7 +15,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const healthcheck = {
       uptime: process.uptime(),
       status: "OK",
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      deployment: deploymentManager.getStatus(),
+      build: deploymentManager.getBuildStatus()
     };
     try {
       res.send(healthcheck);
