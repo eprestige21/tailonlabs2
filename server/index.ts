@@ -42,8 +42,11 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
+    log("Starting server initialization...");
+
     // Test database connection first
     try {
+      log("Testing database connection...");
       const result = await db.query.users.findFirst();
       log("Database connection successful");
     } catch (error) {
@@ -51,15 +54,18 @@ app.use((req, res, next) => {
       process.exit(1);
     }
 
-    // Initialize deployment manager
-    const deployInit = await deploymentManager.initialize();
-    if (!deployInit.success) {
-      log(`Failed to initialize deployment: ${deployInit.error}`);
-      process.exit(1);
-    }
-    log("Deployment manager initialized successfully");
+    // Temporarily disable deployment manager
+    log("Skipping deployment manager initialization for debugging");
+    // const deployInit = await deploymentManager.initialize();
+    // if (!deployInit.success) {
+    //   log(`Failed to initialize deployment: ${deployInit.error}`);
+    //   process.exit(1);
+    // }
+    // log("Deployment manager initialized successfully");
 
+    log("Registering routes...");
     const server = await registerRoutes(app);
+    log("Routes registered successfully");
 
     // Global error handler
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -70,6 +76,7 @@ app.use((req, res, next) => {
     });
 
     // Setup Vite or static serving based on environment
+    log("Setting up server environment...");
     if (app.get("env") === "development") {
       await setupVite(app, server);
       log("Vite development server setup complete");
@@ -80,6 +87,7 @@ app.use((req, res, next) => {
 
     // Start the server
     const PORT = 5000;
+    log(`Attempting to start server on port ${PORT}...`);
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server started successfully on port ${PORT}`);
     });
