@@ -52,25 +52,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).send("Unauthorized");
     }
 
-    const [business] = await db
-      .insert(businesses)
-      .values({
-        ...req.body,
-        billingInfo: {
-          balance: 0,
-          autoRechargeThreshold: 10,
-          autoRechargeAmount: 50
-        }
-      })
-      .returning();
+    try {
+      const [business] = await db
+        .insert(businesses)
+        .values({
+          ...req.body,
+          billingInfo: {
+            balance: 0,
+            autoRechargeThreshold: 10,
+            autoRechargeAmount: 50
+          }
+        })
+        .returning();
 
-    // Update user with the new business ID
-    await db
-      .update(users)
-      .set({ businessId: business.id })
-      .where(eq(users.id, req.user.id));
+      // Update user with the new business ID
+      await db
+        .update(users)
+        .set({ businessId: business.id })
+        .where(eq(users.id, req.user.id));
 
-    res.status(201).json(business);
+      res.status(201).json(business);
+    } catch (error) {
+      console.error('Error creating business:', error);
+      res.status(500).json({ message: "Failed to create business" });
+    }
   });
 
   // Usage history routes
