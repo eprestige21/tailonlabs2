@@ -5,14 +5,17 @@ import session from "express-session";
 import { hash, compare } from "bcrypt";
 import { storage } from "./storage";
 import { User as SelectUser, InsertUser } from "@shared/schema";
-import { MailService } from '@sendgrid/mail';
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import crypto from 'crypto';
 
-// Initialize SendGrid
-const mailService = new MailService();
-if (process.env.SENDGRID_API_KEY) {
-  mailService.setApiKey(process.env.SENDGRID_API_KEY);
-}
+// Initialize AWS SES
+const sesClient = new SESClient({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
+  }
+});
 
 declare global {
   namespace Express {
@@ -199,24 +202,38 @@ export function setupAuth(app: Express) {
       const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
 
       // Store reset token in database
-      await storage.setPasswordResetToken(user.id, resetToken, resetTokenExpiry);
+      await storage.storeResetToken(user.id, resetToken, resetTokenExpiry);
 
-      // Only attempt to send email if SENDGRID_API_KEY is configured
-      if (process.env.SENDGRID_API_KEY) {
+      // Only attempt to send email if AWS credentials are configured
+      if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
         const resetUrl = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
 
-        await mailService.send({
-          to: email,
-          from: process.env.SENDGRID_FROM_EMAIL || 'noreply@yourdomain.com',
-          subject: 'Password Reset Request',
-          text: `To reset your password, click this link: ${resetUrl}`,
-          html: `
-            <p>You requested a password reset.</p>
-            <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
-            <p>If you didn't request this, please ignore this email.</p>
-            <p>This link will expire in 1 hour.</p>
-          `,
-        });
+        const params = {
+          Source: process.env.SES_FROM_EMAIL,
+          Destination: {
+            ToAddresses: [email],
+          },
+          Message: {
+            Subject: {
+              Data: 'Password Reset Request',
+            },
+            Body: {
+              Text: {
+                Data: `To reset your password, click this link: ${resetUrl}`,
+              },
+              Html: {
+                Data: `
+                  <p>You requested a password reset.</p>
+                  <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
+                  <p>If you didn't request this, please ignore this email.</p>
+                  <p>This link will expire in 1 hour.</p>
+                `,
+              },
+            },
+          },
+        };
+
+        await sesClient.send(new SendEmailCommand(params));
       }
 
       res.status(200).json({
@@ -237,7 +254,7 @@ export function setupAuth(app: Express) {
 
       // Verify token and get user
       const user = await storage.getUserByResetToken(token);
-      if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+      if (!user || !user.resetTokenExpires || user.resetTokenExpires < new Date()) {
         return res.status(400).json({
           message: "Invalid or expired reset token"
         });
