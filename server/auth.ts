@@ -32,13 +32,19 @@ declare global {
   }
 }
 
-// Email sending function
 async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<{ success: boolean; error?: string }> {
   try {
     if (!process.env.SES_FROM_EMAIL) {
       console.error('[Auth] Missing SES_FROM_EMAIL configuration');
       return { success: false, error: 'Email service configuration missing' };
     }
+
+    console.log('[Auth] SES Configuration:', {
+      region: awsRegion,
+      fromEmail: process.env.SES_FROM_EMAIL,
+      hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+      hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY
+    });
 
     const params = {
       Source: process.env.SES_FROM_EMAIL,
@@ -51,7 +57,7 @@ async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<
         },
         Body: {
           Text: {
-            Data: `To reset your password, click this link: ${resetUrl}`
+            Data: `To reset your password, click this link: ${resetUrl}\n\nThis link will expire in 1 hour.`
           },
           Html: {
             Data: `
@@ -66,20 +72,50 @@ async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<
       }
     };
 
-    console.log('[Auth] Sending password reset email to:', email);
-    const result = await sesClient.send(new SendEmailCommand(params));
-    console.log('[Auth] Password reset email sent successfully:', {
-      messageId: result.MessageId,
-      requestId: result.$metadata?.requestId
-    });
-    return { success: true };
-  } catch (error: any) {
-    console.error('[Auth] Failed to send password reset email:', {
-      code: error.Code || error.code,
-      message: error.message,
+    console.log('[Auth] Attempting to send email via AWS SES with params:', {
+      source: params.Source,
+      destination: params.Destination.ToAddresses[0],
       region: awsRegion
     });
-    return { success: false, error: error.message };
+
+    const result = await sesClient.send(new SendEmailCommand(params));
+
+    console.log('[Auth] Email sent successfully:', {
+      messageId: result.MessageId,
+      requestId: result.$metadata?.requestId,
+      region: awsRegion
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Auth] AWS SES Error:', {
+      code: error.Code || error.code,
+      message: error.message,
+      name: error.name,
+      region: awsRegion,
+      stack: error.stack,
+      requestId: error.$metadata?.requestId
+    });
+
+    // Check for specific AWS SES errors
+    if (error.name === 'MessageRejected') {
+      return { 
+        success: false, 
+        error: 'Email rejected. This may be due to unverified email addresses in sandbox mode.'
+      };
+    }
+
+    if (error.code === 'InvalidClientTokenId' || error.code === 'SignatureDoesNotMatch') {
+      return { 
+        success: false, 
+        error: 'Invalid AWS credentials. Please check your AWS configuration.'
+      };
+    }
+
+    return { 
+      success: false, 
+      error: `Failed to send email: ${error.message}`
+    };
   }
 }
 
