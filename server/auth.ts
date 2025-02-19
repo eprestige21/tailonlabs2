@@ -106,12 +106,12 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      const { username, password } = req.body;
-      console.log(`[Auth] Registration attempt for username: ${username}`);
+      const { username, email, password } = req.body;
+      console.log(`[Auth] Registration attempt for username: ${username}, email: ${email}`);
 
-      if (!username || !password) {
-        console.log(`[Auth] Registration failed: Missing username or password`);
-        return res.status(400).json({ message: "Username and password are required" });
+      if (!username || !password || !email) {
+        console.log(`[Auth] Registration failed: Missing required fields`);
+        return res.status(400).json({ message: "Username, email and password are required" });
       }
 
       const existingUser = await storage.getUserByUsername(username);
@@ -120,10 +120,17 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Username already exists" });
       }
 
+      const existingEmail = await storage.getUserByEmail(email);
+      if (existingEmail) {
+        console.log(`[Auth] Registration failed: Email already exists: ${email}`);
+        return res.status(400).json({ message: "Email already exists" });
+      }
+
       console.log(`[Auth] Hashing password for new user`);
       const hashedPassword = await hash(password, 10);
       const newUser: InsertUser = {
         username,
+        email,
         password: hashedPassword
       };
 
