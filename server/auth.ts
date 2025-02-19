@@ -190,6 +190,77 @@ export function setupAuth(app: Express) {
     });
   });
 
+  // Add detailed error logging for AWS SES
+  async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!process.env.SES_FROM_EMAIL) {
+        console.error('[Auth] Missing SES_FROM_EMAIL configuration');
+        return { success: false, error: 'Email service configuration missing' };
+      }
+
+      const params = {
+        Source: process.env.SES_FROM_EMAIL,
+        Destination: {
+          ToAddresses: [email],
+        },
+        Message: {
+          Subject: {
+            Data: 'Password Reset Request',
+          },
+          Body: {
+            Text: {
+              Data: `To reset your password, click this link: ${resetUrl}`,
+            },
+            Html: {
+              Data: `
+                <p>You requested a password reset.</p>
+                <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
+                <p>If you didn't request this, please ignore this email.</p>
+                <p>This link will expire in 1 hour.</p>
+              `,
+            },
+          },
+        },
+      };
+
+      console.log('[Auth] Attempting to send email with params:', {
+        from: process.env.SES_FROM_EMAIL,
+        to: email,
+        subject: 'Password Reset Request',
+        region: process.env.AWS_REGION
+      });
+
+      const result = await sesClient.send(new SendEmailCommand(params));
+      console.log('[Auth] Email sent successfully:', {
+        messageId: result.MessageId,
+        requestId: result.$metadata?.requestId
+      });
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Auth] SES Error Details:', {
+        code: error.code,
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+        requestId: error.$metadata?.requestId,
+        statusCode: error.$metadata?.httpStatusCode
+      });
+
+      // Check for specific SES errors
+      const errorCode = error.code || '';
+      if (errorCode.includes('MessageRejected')) {
+        return { success: false, error: 'Email rejected by SES. Please verify sender and recipient addresses.' };
+      } else if (errorCode.includes('InvalidParameterValue')) {
+        return { success: false, error: 'Invalid email parameters. Please check email addresses.' };
+      } else if (errorCode.includes('AccessDenied')) {
+        return { success: false, error: 'Access denied. Please check AWS credentials and permissions.' };
+      }
+
+      return { success: false, error: `Failed to send email: ${error.message}` };
+    }
+  }
+
+  // Update the forgot password endpoint to use the new function
   app.post("/api/forgot-password", async (req, res) => {
     try {
       const { email } = req.body;
@@ -198,7 +269,6 @@ export function setupAuth(app: Express) {
       const user = await storage.getUserByEmail(email);
       if (!user) {
         console.log(`[Auth] No user found with email: ${email}`);
-        // Don't reveal whether the email exists
         return res.status(200).json({
           message: "If an account exists with this email, you will receive a password reset link."
         });
@@ -217,90 +287,43 @@ export function setupAuth(app: Express) {
       if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
         const appUrl = process.env.APP_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
         const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
-        console.log(`[Auth] Attempting to send password reset email to: ${email}`);
-        console.log(`[Auth] Reset URL: ${resetUrl}`);
-        console.log(`[Auth] Using SES configuration - Region: ${process.env.AWS_REGION}, From: ${process.env.SES_FROM_EMAIL}`);
 
-        const params = {
-          Source: process.env.SES_FROM_EMAIL,
-          Destination: {
-            ToAddresses: [email],
-          },
-          Message: {
-            Subject: {
-              Data: 'Password Reset Request',
-            },
-            Body: {
-              Text: {
-                Data: `To reset your password, click this link: ${resetUrl}`,
-              },
-              Html: {
-                Data: `
-                  <p>You requested a password reset.</p>
-                  <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
-                  <p>If you didn't request this, please ignore this email.</p>
-                  <p>This link will expire in 1 hour.</p>
-                `,
-              },
-            },
-          },
-        };
+        const emailResult = await sendPasswordResetEmail(email, resetUrl);
 
-        try {
-          console.log('[Auth] Sending email via AWS SES...');
-          const result = await sesClient.send(new SendEmailCommand(params));
-          console.log(`[Auth] Email sent successfully. MessageId: ${result.MessageId}`);
-
-          if (process.env.NODE_ENV === 'development') {
-            return res.status(200).json({
-              message: "Password reset email sent successfully. Please check your inbox.",
-              debug: { 
-                emailSent: true, 
-                messageId: result.MessageId,
-                resetUrl // Include reset URL in development for testing
-              }
-            });
-          }
-
-          res.status(200).json({
-            message: "If an account exists with this email, you will receive a password reset link."
-          });
-        } catch (error: any) {
-          console.error('[Auth] Failed to send email via AWS SES:', error);
-          console.error('[Auth] Error details:', {
-            code: error.code,
-            message: error.message,
-            requestId: error.$metadata?.requestId
-          });
-
-          // In development, return more detailed error information
-          if (process.env.NODE_ENV === 'development') {
-            return res.status(500).json({
-              message: "Failed to send password reset email",
-              error: {
-                code: error.code,
-                message: error.message,
-                details: "Check server logs for more information"
-              }
-            });
-          }
-
-          // In production, use a generic error message
+        if (!emailResult.success) {
+          console.error('[Auth] Failed to send reset email:', emailResult.error);
           return res.status(500).json({
-            message: "Unable to process your request at this time. Please try again later."
+            message: process.env.NODE_ENV === 'development'
+              ? `Email sending failed: ${emailResult.error}`
+              : "Unable to process your request at this time. Please try again later."
+          });
+        }
+
+        // In development, include debug information
+        if (process.env.NODE_ENV === 'development') {
+          return res.status(200).json({
+            message: "Password reset email sent successfully. Please check your inbox.",
+            debug: { resetUrl }
           });
         }
       } else {
-        console.log('[Auth] AWS credentials not configured properly');
-        console.log('[Auth] AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
-        console.log('[Auth] AWS_SECRET_ACCESS_KEY exists:', !!process.env.AWS_SECRET_ACCESS_KEY);
-        console.log('[Auth] SES_FROM_EMAIL:', process.env.SES_FROM_EMAIL);
+        console.error('[Auth] AWS credentials not properly configured:', {
+          hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+          hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,
+          region: process.env.AWS_REGION,
+          fromEmail: process.env.SES_FROM_EMAIL
+        });
         return res.status(500).json({
           message: "Email service is not configured properly. Please contact support."
         });
       }
+
+      // Standard response for both success and no-user cases
+      res.status(200).json({
+        message: "If an account exists with this email, you will receive a password reset link."
+      });
     } catch (error) {
-      console.error("Password reset request error:", error);
+      console.error("[Auth] Password reset request error:", error);
       res.status(500).json({
         message: "Failed to process password reset request. Please try again later."
       });
