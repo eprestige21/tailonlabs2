@@ -9,7 +9,7 @@ import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import crypto from 'crypto';
 
 // Get the AWS region, ensuring it's just the region identifier
-const awsRegion = (process.env.AWS_REGION || 'us-east-1').replace(/\.amazonaws\.com$/, '');
+const awsRegion = (process.env.AWS_REGION || 'us-east-1').replace(/\.amazonaws\.com$/, '').replace(/^email-smtp\./, '');
 console.log('[Auth] Using AWS Region:', awsRegion);
 
 if (!process.env.SES_FROM_EMAIL?.includes('@')) {
@@ -20,6 +20,7 @@ if (!process.env.SES_FROM_EMAIL?.includes('@')) {
 // Initialize SES client with just region and credentials
 const sesClient = new SESClient({
   region: awsRegion,
+  endpoint: `https://email-smtp.${awsRegion}.amazonaws.com`,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
