@@ -9,19 +9,62 @@ import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import crypto from 'crypto';
 
 // Initialize AWS SES with explicit logging and validation
-console.log('[Auth] Initializing AWS SES client with region:', process.env.AWS_REGION);
+const awsRegion = process.env.AWS_REGION || 'us-east-1';
+console.log('[Auth] Initializing AWS SES client with region:', awsRegion);
+
 if (!process.env.SES_FROM_EMAIL?.includes('@')) {
-  console.error('[Auth] SES_FROM_EMAIL must be a valid email address, not an IAM user');
+  console.error('[Auth] SES_FROM_EMAIL must be a valid email address');
   throw new Error('Invalid SES_FROM_EMAIL configuration');
 }
 
+// Initialize SES client with minimal configuration
 const sesClient = new SESClient({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: awsRegion,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
   }
 });
+
+// This function will verify the AWS SES configuration and permissions
+async function verifyAWSConfiguration() {
+  try {
+    console.log('[Auth] Verifying AWS SES configuration:', {
+      region: awsRegion,
+      fromEmail: process.env.SES_FROM_EMAIL,
+      hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+      hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY
+    });
+
+    // Only attempt verification if we have credentials
+    if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+      console.error('[Auth] AWS credentials not configured');
+      return false;
+    }
+
+    const testParams = {
+      Source: process.env.SES_FROM_EMAIL,
+      Destination: {
+        ToAddresses: [process.env.SES_FROM_EMAIL]
+      },
+      Message: {
+        Subject: { Data: 'AWS SES Configuration Test' },
+        Body: { Text: { Data: 'Testing AWS SES Configuration' } }
+      }
+    };
+
+    await sesClient.send(new SendEmailCommand(testParams));
+    console.log('[Auth] AWS SES configuration verified successfully');
+    return true;
+  } catch (error: any) {
+    console.error('[Auth] AWS SES verification failed:', {
+      code: error.Code || error.code,
+      message: error.message,
+      region: awsRegion
+    });
+    return false;
+  }
+}
 
 declare global {
   namespace Express {
@@ -29,7 +72,60 @@ declare global {
   }
 }
 
+// Email sending function
+async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!process.env.SES_FROM_EMAIL) {
+      console.error('[Auth] Missing SES_FROM_EMAIL configuration');
+      return { success: false, error: 'Email service configuration missing' };
+    }
+
+    const params = {
+      Source: process.env.SES_FROM_EMAIL,
+      Destination: {
+        ToAddresses: [email]
+      },
+      Message: {
+        Subject: {
+          Data: 'Password Reset Request'
+        },
+        Body: {
+          Text: {
+            Data: `To reset your password, click this link: ${resetUrl}`
+          },
+          Html: {
+            Data: `
+              <h2>Password Reset Request</h2>
+              <p>You requested to reset your password.</p>
+              <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
+              <p>If you didn't request this, please ignore this email.</p>
+              <p>This link will expire in 1 hour.</p>
+            `
+          }
+        }
+      }
+    };
+
+    console.log('[Auth] Sending password reset email to:', email);
+    const result = await sesClient.send(new SendEmailCommand(params));
+    console.log('[Auth] Password reset email sent successfully:', {
+      messageId: result.MessageId,
+      requestId: result.$metadata?.requestId
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Auth] Failed to send password reset email:', {
+      code: error.Code || error.code,
+      message: error.message,
+      region: awsRegion
+    });
+    return { success: false, error: error.message };
+  }
+}
+
 export function setupAuth(app: Express) {
+  console.log('[Auth] Starting auth setup...');
+
   // Ensure we have a session secret
   if (!process.env.SESSION_SECRET) {
     console.error("SESSION_SECRET environment variable is required");
@@ -50,11 +146,13 @@ export function setupAuth(app: Express) {
     name: 'sid'
   };
 
+  console.log('[Auth] Configuring session middleware...');
   app.set("trust proxy", 1);
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
+  console.log('[Auth] Configuring passport strategy...');
   passport.use(
     new LocalStrategy(async (username: string, password: string, done) => {
       try {
@@ -104,6 +202,15 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Verify AWS configuration asynchronously after server startup
+  setTimeout(async () => {
+    const verified = await verifyAWSConfiguration();
+    if (!verified) {
+      console.warn('[Auth] AWS SES configuration verification failed - email features may not work');
+    }
+  }, 1000);
+
+  // Register endpoint
   app.post("/api/register", async (req, res, next) => {
     try {
       const { username, email, password } = req.body;
@@ -143,7 +250,6 @@ export function setupAuth(app: Express) {
           console.error(`[Auth] Login error after registration:`, err);
           return next(err);
         }
-        // Don't send password hash back to client
         const { password, ...userWithoutPassword } = user;
         console.log(`[Auth] Registration complete, user logged in: ${user.id}`);
         res.status(201).json(userWithoutPassword);
@@ -154,6 +260,7 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Login endpoint
   app.post("/api/login", (req, res, next) => {
     console.log(`[Auth] Login attempt for username: ${req.body.username}`);
     passport.authenticate("local", (err: Error | null, user: SelectUser | false, info: { message: string } | undefined) => {
@@ -170,7 +277,6 @@ export function setupAuth(app: Express) {
           console.error("Session error:", err);
           return res.status(500).json({ message: "Failed to establish session" });
         }
-        // Don't send password hash back to client
         const { password, ...userWithoutPassword } = user;
         console.log(`[Auth] Login successful, session established for user: ${user.id}`);
         res.status(200).json(userWithoutPassword);
@@ -178,6 +284,7 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
+  // Logout endpoint
   app.post("/api/logout", (req, res, next) => {
     const userId = req.user?.id;
     console.log(`[Auth] Logout attempt for user: ${userId}`);
@@ -197,77 +304,7 @@ export function setupAuth(app: Express) {
     });
   });
 
-  // Add detailed error logging for AWS SES
-  async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      if (!process.env.SES_FROM_EMAIL) {
-        console.error('[Auth] Missing SES_FROM_EMAIL configuration');
-        return { success: false, error: 'Email service configuration missing' };
-      }
-
-      const params = {
-        Source: process.env.SES_FROM_EMAIL,
-        Destination: {
-          ToAddresses: [email],
-        },
-        Message: {
-          Subject: {
-            Data: 'Password Reset Request',
-          },
-          Body: {
-            Text: {
-              Data: `To reset your password, click this link: ${resetUrl}`,
-            },
-            Html: {
-              Data: `
-                <p>You requested a password reset.</p>
-                <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
-                <p>If you didn't request this, please ignore this email.</p>
-                <p>This link will expire in 1 hour.</p>
-              `,
-            },
-          },
-        },
-      };
-
-      console.log('[Auth] Attempting to send email with params:', {
-        from: process.env.SES_FROM_EMAIL,
-        to: email,
-        subject: 'Password Reset Request',
-        region: process.env.AWS_REGION
-      });
-
-      const result = await sesClient.send(new SendEmailCommand(params));
-      console.log('[Auth] Email sent successfully:', {
-        messageId: result.MessageId,
-        requestId: result.$metadata?.requestId
-      });
-      return { success: true };
-    } catch (error: any) {
-      console.error('[Auth] SES Error Details:', {
-        code: error.code,
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-        requestId: error.$metadata?.requestId,
-        statusCode: error.$metadata?.httpStatusCode
-      });
-
-      // Check for specific SES errors
-      const errorCode = error.code || '';
-      if (errorCode.includes('MessageRejected')) {
-        return { success: false, error: 'Email rejected by SES. Please verify sender and recipient addresses.' };
-      } else if (errorCode.includes('InvalidParameterValue')) {
-        return { success: false, error: 'Invalid email parameters. Please check email addresses.' };
-      } else if (errorCode.includes('AccessDenied')) {
-        return { success: false, error: 'Access denied. Please check AWS credentials and permissions.' };
-      }
-
-      return { success: false, error: `Failed to send email: ${error.message}` };
-    }
-  }
-
-  // Update the forgot password endpoint to use the new function
+  // Forgot password endpoint
   app.post("/api/forgot-password", async (req, res) => {
     try {
       const { email } = req.body;
@@ -300,32 +337,16 @@ export function setupAuth(app: Express) {
         if (!emailResult.success) {
           console.error('[Auth] Failed to send reset email:', emailResult.error);
           return res.status(500).json({
-            message: process.env.NODE_ENV === 'development'
-              ? `Email sending failed: ${emailResult.error}`
-              : "Unable to process your request at this time. Please try again later."
-          });
-        }
-
-        // In development, include debug information
-        if (process.env.NODE_ENV === 'development') {
-          return res.status(200).json({
-            message: "Password reset email sent successfully. Please check your inbox.",
-            debug: { resetUrl }
+            message: "Unable to send reset email. Please try again later."
           });
         }
       } else {
-        console.error('[Auth] AWS credentials not properly configured:', {
-          hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
-          hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,
-          region: process.env.AWS_REGION,
-          fromEmail: process.env.SES_FROM_EMAIL
-        });
+        console.error('[Auth] AWS credentials not properly configured');
         return res.status(500).json({
           message: "Email service is not configured properly. Please contact support."
         });
       }
 
-      // Standard response for both success and no-user cases
       res.status(200).json({
         message: "If an account exists with this email, you will receive a password reset link."
       });
@@ -337,12 +358,12 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Reset password endpoint
   app.post("/api/reset-password", async (req, res) => {
     try {
       const { token, newPassword } = req.body;
       console.log(`[Auth] Password reset attempt with token`);
 
-      // Verify token and get user
       const user = await storage.getUserByResetToken(token);
       if (!user || !user.resetTokenExpires || user.resetTokenExpires < new Date()) {
         return res.status(400).json({
@@ -350,11 +371,8 @@ export function setupAuth(app: Express) {
         });
       }
 
-      // Hash new password and update user
       const hashedPassword = await hash(newPassword, 10);
       await storage.updateUserPassword(user.id, hashedPassword);
-
-      // Clear reset token
       await storage.clearPasswordResetToken(user.id);
 
       console.log(`[Auth] Password reset successful for user: ${user.id}`);
@@ -369,14 +387,18 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Get user endpoint
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) {
       console.log(`[Auth] Unauthorized access to /api/user`);
       return res.sendStatus(401);
     }
-    // Don't send password hash back to client
     const { password, ...userWithoutPassword } = req.user;
     console.log(`[Auth] User data retrieved for: ${req.user.id}`);
     res.json(userWithoutPassword);
   });
+
+  console.log('[Auth] Auth setup completed');
 }
+
+export { setupAuth };
