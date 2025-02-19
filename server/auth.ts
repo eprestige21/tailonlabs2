@@ -6,6 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
+import { hash } from "bcrypt";
 
 declare global {
   namespace Express {
@@ -16,21 +17,22 @@ declare global {
 const scryptAsync = promisify(scrypt);
 
 async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
+  return hash(password, 10);
 }
 
 async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split(".");
-  const hashedBuf = Buffer.from(hashed, "hex");
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(hashedBuf, suppliedBuf);
-}
-
-// Generate a random reset token
-async function generateResetToken() {
-  return randomBytes(32).toString("hex");
+  try {
+    const [hashed, salt] = stored.split(".");
+    if (!hashed || !salt) {
+      return false;
+    }
+    const hashedBuf = Buffer.from(hashed, "hex");
+    const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+    return timingSafeEqual(hashedBuf, suppliedBuf);
+  } catch (error) {
+    console.error("Password comparison error:", error);
+    return false;
+  }
 }
 
 export function setupAuth(app: Express) {
@@ -63,11 +65,18 @@ export function setupAuth(app: Express) {
     new LocalStrategy(async (username, password, done) => {
       try {
         const user = await storage.getUserByUsername(username);
-        if (!user || !(await comparePasswords(password, user.password))) {
-          return done(null, false);
+        if (!user) {
+          return done(null, false, { message: "Invalid username or password" });
         }
+
+        const isValidPassword = await comparePasswords(password, user.password);
+        if (!isValidPassword) {
+          return done(null, false, { message: "Invalid username or password" });
+        }
+
         return done(null, user);
       } catch (error) {
+        console.error("Authentication error:", error);
         return done(error);
       }
     })
@@ -108,8 +117,23 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    res.status(200).json(req.user);
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err, user, info) => {
+      if (err) {
+        console.error("Login error:", err);
+        return next(err);
+      }
+      if (!user) {
+        return res.status(401).json({ message: info?.message || "Authentication failed" });
+      }
+      req.login(user, (err) => {
+        if (err) {
+          console.error("Session error:", err);
+          return next(err);
+        }
+        res.status(200).json(user);
+      });
+    })(req, res, next);
   });
 
   app.post("/api/logout", (req, res, next) => {
@@ -125,40 +149,5 @@ export function setupAuth(app: Express) {
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.json(req.user);
-  });
-
-  // Password reset functionality
-  app.post("/api/forgot-password", async (req, res) => {
-    try {
-      const { username } = req.body;
-      const user = await storage.getUserByUsername(username);
-
-      if (!user) {
-        // Don't reveal whether a user exists
-        return res.status(200).json({ 
-          message: "If an account exists with that username, you will receive a password reset email." 
-        });
-      }
-
-      // Generate a reset token
-      const resetToken = await generateResetToken();
-      const resetExpires = new Date(Date.now() + 3600000); // 1 hour from now
-
-      // Store the reset token and expiration
-      await storage.storeResetToken(user.id, resetToken, resetExpires);
-
-      // In a real application, send an email here with the reset link
-      // For demo purposes, we'll just return success
-      // The actual reset would happen at /api/reset-password/:token
-
-      res.status(200).json({ 
-        message: "If an account exists with that username, you will receive a password reset email." 
-      });
-    } catch (error) {
-      console.error("Password reset error:", error);
-      res.status(500).json({ 
-        message: "An error occurred while processing your request." 
-      });
-    }
   });
 }
