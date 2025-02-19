@@ -5,6 +5,14 @@ import session from "express-session";
 import { hash, compare } from "bcrypt";
 import { storage } from "./storage";
 import { User as SelectUser, InsertUser } from "@shared/schema";
+import { MailService } from '@sendgrid/mail';
+import crypto from 'crypto';
+
+// Initialize SendGrid
+const mailService = new MailService();
+if (process.env.SENDGRID_API_KEY) {
+  mailService.setApiKey(process.env.SENDGRID_API_KEY);
+}
 
 declare global {
   namespace Express {
@@ -171,6 +179,87 @@ export function setupAuth(app: Express) {
         res.sendStatus(200);
       });
     });
+  });
+
+  app.post("/api/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      console.log(`[Auth] Password reset requested for email: ${email}`);
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal whether the email exists
+        return res.status(200).json({
+          message: "If an account exists with this email, you will receive a password reset link."
+        });
+      }
+
+      // Generate reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+
+      // Store reset token in database
+      await storage.setPasswordResetToken(user.id, resetToken, resetTokenExpiry);
+
+      // Only attempt to send email if SENDGRID_API_KEY is configured
+      if (process.env.SENDGRID_API_KEY) {
+        const resetUrl = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
+
+        await mailService.send({
+          to: email,
+          from: process.env.SENDGRID_FROM_EMAIL || 'noreply@yourdomain.com',
+          subject: 'Password Reset Request',
+          text: `To reset your password, click this link: ${resetUrl}`,
+          html: `
+            <p>You requested a password reset.</p>
+            <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
+            <p>If you didn't request this, please ignore this email.</p>
+            <p>This link will expire in 1 hour.</p>
+          `,
+        });
+      }
+
+      res.status(200).json({
+        message: "If an account exists with this email, you will receive a password reset link."
+      });
+    } catch (error) {
+      console.error("Password reset request error:", error);
+      res.status(500).json({
+        message: "Failed to process password reset request. Please try again later."
+      });
+    }
+  });
+
+  app.post("/api/reset-password", async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      console.log(`[Auth] Password reset attempt with token`);
+
+      // Verify token and get user
+      const user = await storage.getUserByResetToken(token);
+      if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+        return res.status(400).json({
+          message: "Invalid or expired reset token"
+        });
+      }
+
+      // Hash new password and update user
+      const hashedPassword = await hash(newPassword, 10);
+      await storage.updateUserPassword(user.id, hashedPassword);
+
+      // Clear reset token
+      await storage.clearPasswordResetToken(user.id);
+
+      console.log(`[Auth] Password reset successful for user: ${user.id}`);
+      res.status(200).json({
+        message: "Password has been reset successfully"
+      });
+    } catch (error) {
+      console.error("Password reset error:", error);
+      res.status(500).json({
+        message: "Failed to reset password. Please try again later."
+      });
+    }
   });
 
   app.get("/api/user", (req, res) => {

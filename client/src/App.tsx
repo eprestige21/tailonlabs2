@@ -14,6 +14,7 @@ import AIAgentPage from "@/pages/ai-agent";
 import AnalyticsPage from "@/pages/analytics";
 import UsageStatsPage from "@/pages/usage-stats";
 import Users from "@/pages/users";
+import ForgotPassword from "@/pages/forgot-password";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +29,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
+      <Route path="/forgot-password" component={ForgotPassword} />
       <ProtectedRoute path="/" component={Dashboard} />
       <ProtectedRoute path="/business" component={BusinessProfile} />
       <ProtectedRoute path="/integrations" component={ApiIntegrations} />
