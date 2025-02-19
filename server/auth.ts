@@ -8,29 +8,18 @@ import { User as SelectUser, InsertUser } from "@shared/schema";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import crypto from 'crypto';
 
-// Get the AWS region, ensuring it's just the region identifier
-const awsRegion = (process.env.AWS_REGION || 'us-east-1').replace(/\.amazonaws\.com$/, '').replace(/^email-smtp\./, '');
-console.log('[Auth] Using AWS Region:', awsRegion);
-
-if (!process.env.SES_FROM_EMAIL?.includes('@')) {
-  console.error('[Auth] SES_FROM_EMAIL must be a valid email address');
-  throw new Error('Invalid SES_FROM_EMAIL configuration');
-}
-
-// Initialize SES client with just region and credentials
+// Initialize SES client with the correct endpoint format
 const sesClient = new SESClient({
-  region: awsRegion,
-  endpoint: `https://email-smtp.${awsRegion}.amazonaws.com`,
+  region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
   }
 });
 
-declare global {
-  namespace Express {
-    interface User extends SelectUser {}
-  }
+if (!process.env.SES_FROM_EMAIL?.includes('@')) {
+  console.error('[Auth] SES_FROM_EMAIL must be a valid email address');
+  throw new Error('Invalid SES_FROM_EMAIL configuration');
 }
 
 async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<{ success: boolean; error?: string }> {
@@ -41,7 +30,7 @@ async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<
     }
 
     console.log('[Auth] SES Configuration:', {
-      region: awsRegion,
+      region: process.env.AWS_REGION || 'us-east-1',
       fromEmail: process.env.SES_FROM_EMAIL,
       hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
       hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY
@@ -73,18 +62,12 @@ async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<
       }
     };
 
-    console.log('[Auth] Attempting to send email via AWS SES with params:', {
-      source: params.Source,
-      destination: params.Destination.ToAddresses[0],
-      region: awsRegion
-    });
-
+    console.log('[Auth] Attempting to send email via AWS SES');
     const result = await sesClient.send(new SendEmailCommand(params));
 
     console.log('[Auth] Email sent successfully:', {
       messageId: result.MessageId,
-      requestId: result.$metadata?.requestId,
-      region: awsRegion
+      requestId: result.$metadata?.requestId
     });
 
     return { success: true };
@@ -93,16 +76,14 @@ async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<
       code: error.Code || error.code,
       message: error.message,
       name: error.name,
-      region: awsRegion,
       stack: error.stack,
       requestId: error.$metadata?.requestId
     });
 
-    // Check for specific AWS SES errors
     if (error.name === 'MessageRejected') {
       return {
         success: false,
-        error: 'Email rejected. This may be due to unverified email addresses in sandbox mode.'
+        error: 'Email rejected. Please verify the sender and recipient email addresses.'
       };
     }
 
@@ -117,6 +98,12 @@ async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<
       success: false,
       error: `Failed to send email: ${error.message}`
     };
+  }
+}
+
+declare global {
+  namespace Express {
+    interface User extends SelectUser {}
   }
 }
 
@@ -329,8 +316,8 @@ export function setupAuth(app: Express) {
       const appUrl = process.env.APP_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
       const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
 
-      // Set a timeout for the email sending process
-      const emailTimeoutMs = 5000; // 5 seconds timeout
+      // Set a timeout for the email sending process - increased to 30 seconds
+      const emailTimeoutMs = 30000; // 30 seconds timeout
       const emailPromise = sendPasswordResetEmail(email, resetUrl);
 
       try {
@@ -348,7 +335,7 @@ export function setupAuth(app: Express) {
             details: emailResult.error
           });
         }
-      } catch (emailError) {
+      } catch (emailError: any) {
         console.error('[Auth] Email sending error:', emailError);
         return res.status(500).json({
           message: "Unable to send reset email. Please try again later.",
