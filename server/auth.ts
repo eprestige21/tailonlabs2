@@ -206,8 +206,10 @@ export function setupAuth(app: Express) {
 
       // Only attempt to send email if AWS credentials are configured
       if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-        const resetUrl = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
-        console.log(`[Auth] Attempting to send password reset email to: ${email.substring(0, 3)}...`);
+        const appUrl = process.env.APP_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+        const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
+        console.log(`[Auth] Attempting to send password reset email to: ${email}`);
+        console.log(`[Auth] Reset URL: ${resetUrl}`);
         console.log(`[Auth] Using SES configuration - Region: ${process.env.AWS_REGION}, From: ${process.env.SES_FROM_EMAIL}`);
 
         const params = {
@@ -239,6 +241,11 @@ export function setupAuth(app: Express) {
           console.log('[Auth] Sending email via AWS SES...');
           const result = await sesClient.send(new SendEmailCommand(params));
           console.log(`[Auth] Email sent successfully. MessageId: ${result.MessageId}`);
+
+          res.status(200).json({
+            message: "If an account exists with this email, you will receive a password reset link.",
+            debug: process.env.NODE_ENV === 'development' ? { emailSent: true, messageId: result.MessageId } : undefined
+          });
         } catch (error: any) {
           console.error('[Auth] Failed to send email via AWS SES:', error);
           console.error('[Auth] Error details:', {
@@ -246,15 +253,29 @@ export function setupAuth(app: Express) {
             message: error.message,
             requestId: error.$metadata?.requestId
           });
-          // Don't expose the error to the client, maintain the same response
+
+          // In development, return more detailed error information
+          if (process.env.NODE_ENV === 'development') {
+            return res.status(500).json({
+              message: "Failed to send password reset email. Please try again later.",
+              error: {
+                code: error.code,
+                message: error.message
+              }
+            });
+          }
+
+          // In production, use a generic error message
+          return res.status(500).json({
+            message: "Unable to process your request at this time. Please try again later."
+          });
         }
       } else {
         console.log('[Auth] AWS credentials not configured, skipping email send');
+        return res.status(500).json({
+          message: "Email service is not configured. Please contact support."
+        });
       }
-
-      res.status(200).json({
-        message: "If an account exists with this email, you will receive a password reset link."
-      });
     } catch (error) {
       console.error("Password reset request error:", error);
       res.status(500).json({

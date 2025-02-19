@@ -35,19 +35,24 @@ export default function ForgotPassword() {
 
   const resetPasswordMutation = useMutation({
     mutationFn: async (data: ForgotPasswordForm) => {
-      return apiRequest("POST", "/api/forgot-password", data);
+      const response = await apiRequest("POST", "/api/forgot-password", data);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to send reset link");
+      }
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Reset link sent",
-        description: "If an account exists with this email, you will receive a password reset link.",
+        description: data.message || "If an account exists with this email, you will receive a password reset link.",
       });
       form.reset();
     },
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to send reset link. Please try again later.",
         variant: "destructive",
       });
     },
@@ -72,7 +77,12 @@ export default function ForgotPassword() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="Enter your email" {...field} />
+                      <Input 
+                        type="email" 
+                        placeholder="Enter your email" 
+                        {...field} 
+                        disabled={resetPasswordMutation.isPending}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
