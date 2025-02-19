@@ -44,12 +44,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { logoutMutation } = useAuth();
   const [, setLocation] = useWouterLocation();
 
-  const handleLogout = () => {
-    logoutMutation.mutate(undefined, {
-      onSuccess: () => {
-        setLocation("/auth");
-      }
-    });
+  const handleLogout = async () => {
+    try {
+      await logoutMutation.mutateAsync(undefined);
+      // Only redirect after successful logout
+      setLocation("/auth");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   const links = [
@@ -90,9 +92,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               variant="ghost"
               className="w-full justify-start"
               onClick={handleLogout}
+              disabled={logoutMutation.isPending}
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Logout
+              {logoutMutation.isPending ? "Logging out..." : "Logout"}
             </Button>
           </div>
         </div>
