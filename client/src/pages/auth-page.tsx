@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Redirect } from "wouter";
+import { Redirect, Link } from "wouter";
 import { Loader2 } from "lucide-react";
 
 export default function AuthPage() {
@@ -88,6 +88,11 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
+                    <div className="flex justify-between items-center">
+                      <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                        Forgot Password?
+                      </Link>
+                    </div>
                     <Button
                       type="submit"
                       className="w-full"
