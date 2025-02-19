@@ -8,8 +8,13 @@ import { User as SelectUser, InsertUser } from "@shared/schema";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import crypto from 'crypto';
 
-// Initialize AWS SES with explicit logging
+// Initialize AWS SES with explicit logging and validation
 console.log('[Auth] Initializing AWS SES client with region:', process.env.AWS_REGION);
+if (!process.env.SES_FROM_EMAIL?.includes('@')) {
+  console.error('[Auth] SES_FROM_EMAIL must be a valid email address, not an IAM user');
+  throw new Error('Invalid SES_FROM_EMAIL configuration');
+}
+
 const sesClient = new SESClient({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
