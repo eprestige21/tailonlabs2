@@ -12,29 +12,11 @@ app.use(express.urlencoded({ extended: false }));
 // Add logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  log(`${req.method} ${req.url} - Started`);
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
+  res.on('finish', () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
+    log(`${req.method} ${req.url} - ${res.statusCode} - ${duration}ms`);
   });
 
   next();
@@ -54,15 +36,6 @@ app.use((req, res, next) => {
       process.exit(1);
     }
 
-    // Temporarily disable deployment manager
-    log("Skipping deployment manager initialization for debugging");
-    // const deployInit = await deploymentManager.initialize();
-    // if (!deployInit.success) {
-    //   log(`Failed to initialize deployment: ${deployInit.error}`);
-    //   process.exit(1);
-    // }
-    // log("Deployment manager initialized successfully");
-
     log("Registering routes...");
     const server = await registerRoutes(app);
     log("Routes registered successfully");
@@ -70,6 +43,7 @@ app.use((req, res, next) => {
     // Global error handler
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       log(`Error occurred: ${err.message}`);
+      console.error(err);
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
       res.status(status).json({ message });
@@ -86,13 +60,14 @@ app.use((req, res, next) => {
     }
 
     // Start the server
-    const PORT = 5000;
-    log(`Attempting to start server on port ${PORT}...`);
+    const PORT = process.env.PORT || 5000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server started successfully on port ${PORT}`);
+      log(`Server URL: http://0.0.0.0:${PORT}`);
     });
   } catch (error) {
     log(`Critical error during server startup: ${error}`);
+    console.error(error);
     process.exit(1);
   }
 })();
