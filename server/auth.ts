@@ -302,6 +302,7 @@ export function setupAuth(app: Express) {
       const user = await storage.getUserByEmail(email);
       if (!user) {
         console.log(`[Auth] No user found with email: ${email}`);
+        // Return success even if user not found for security
         return res.status(200).json({
           message: "If an account exists with this email, you will receive a password reset link."
         });
@@ -313,26 +314,45 @@ export function setupAuth(app: Express) {
       const resetToken = crypto.randomBytes(32).toString('hex');
       const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
 
-      // Store reset token in database
+      // Store reset token in database first
       await storage.storeResetToken(user.id, resetToken, resetTokenExpiry);
 
-      // Only attempt to send email if AWS credentials are configured
-      if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-        const appUrl = process.env.APP_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-        const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
+      // Check if AWS credentials are configured
+      if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+        console.error('[Auth] AWS credentials not properly configured');
+        return res.status(500).json({
+          message: "Email service is not configured properly. Please try again later.",
+          details: "Missing AWS credentials"
+        });
+      }
 
-        const emailResult = await sendPasswordResetEmail(email, resetUrl);
+      const appUrl = process.env.APP_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
+
+      // Set a timeout for the email sending process
+      const emailTimeoutMs = 5000; // 5 seconds timeout
+      const emailPromise = sendPasswordResetEmail(email, resetUrl);
+
+      try {
+        const emailResult = await Promise.race([
+          emailPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Email sending timed out')), emailTimeoutMs)
+          )
+        ]);
 
         if (!emailResult.success) {
           console.error('[Auth] Failed to send reset email:', emailResult.error);
           return res.status(500).json({
-            message: "Unable to send reset email. Please try again later."
+            message: "Unable to send reset email. Please try again later.",
+            details: emailResult.error
           });
         }
-      } else {
-        console.error('[Auth] AWS credentials not properly configured');
+      } catch (emailError) {
+        console.error('[Auth] Email sending error:', emailError);
         return res.status(500).json({
-          message: "Email service is not configured properly. Please contact support."
+          message: "Unable to send reset email. Please try again later.",
+          details: emailError.message
         });
       }
 
@@ -342,7 +362,8 @@ export function setupAuth(app: Express) {
     } catch (error) {
       console.error("[Auth] Password reset request error:", error);
       res.status(500).json({
-        message: "Failed to process password reset request. Please try again later."
+        message: "Failed to process password reset request. Please try again later.",
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   });
