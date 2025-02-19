@@ -8,16 +8,16 @@ import { User as SelectUser, InsertUser } from "@shared/schema";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import crypto from 'crypto';
 
-// Initialize AWS SES with explicit logging and validation
-const awsRegion = process.env.AWS_REGION || 'us-east-1';
-console.log('[Auth] Initializing AWS SES client with region:', awsRegion);
+// Get the AWS region, ensuring it's just the region identifier
+const awsRegion = (process.env.AWS_REGION || 'us-east-1').replace(/\.amazonaws\.com$/, '');
+console.log('[Auth] Using AWS Region:', awsRegion);
 
 if (!process.env.SES_FROM_EMAIL?.includes('@')) {
   console.error('[Auth] SES_FROM_EMAIL must be a valid email address');
   throw new Error('Invalid SES_FROM_EMAIL configuration');
 }
 
-// Initialize SES client with minimal configuration
+// Initialize SES client with just region and credentials
 const sesClient = new SESClient({
   region: awsRegion,
   credentials: {
@@ -25,46 +25,6 @@ const sesClient = new SESClient({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
   }
 });
-
-// This function will verify the AWS SES configuration and permissions
-async function verifyAWSConfiguration() {
-  try {
-    console.log('[Auth] Verifying AWS SES configuration:', {
-      region: awsRegion,
-      fromEmail: process.env.SES_FROM_EMAIL,
-      hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
-      hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY
-    });
-
-    // Only attempt verification if we have credentials
-    if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
-      console.error('[Auth] AWS credentials not configured');
-      return false;
-    }
-
-    const testParams = {
-      Source: process.env.SES_FROM_EMAIL,
-      Destination: {
-        ToAddresses: [process.env.SES_FROM_EMAIL]
-      },
-      Message: {
-        Subject: { Data: 'AWS SES Configuration Test' },
-        Body: { Text: { Data: 'Testing AWS SES Configuration' } }
-      }
-    };
-
-    await sesClient.send(new SendEmailCommand(testParams));
-    console.log('[Auth] AWS SES configuration verified successfully');
-    return true;
-  } catch (error: any) {
-    console.error('[Auth] AWS SES verification failed:', {
-      code: error.Code || error.code,
-      message: error.message,
-      region: awsRegion
-    });
-    return false;
-  }
-}
 
 declare global {
   namespace Express {
@@ -201,14 +161,6 @@ export function setupAuth(app: Express) {
       done(error);
     }
   });
-
-  // Verify AWS configuration asynchronously after server startup
-  setTimeout(async () => {
-    const verified = await verifyAWSConfiguration();
-    if (!verified) {
-      console.warn('[Auth] AWS SES configuration verification failed - email features may not work');
-    }
-  }, 1000);
 
   // Register endpoint
   app.post("/api/register", async (req, res, next) => {
@@ -400,5 +352,3 @@ export function setupAuth(app: Express) {
 
   console.log('[Auth] Auth setup completed');
 }
-
-export { setupAuth };
