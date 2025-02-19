@@ -47,8 +47,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const handleLogout = async () => {
     try {
       await logoutMutation.mutateAsync(undefined);
-      // Only redirect after successful logout
-      setLocation("/auth");
+      // Force redirect to auth page after successful logout
+      window.location.href = "/auth";
     } catch (error) {
       console.error("Logout failed:", error);
     }
