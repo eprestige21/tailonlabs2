@@ -99,21 +99,21 @@ async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<
 
     // Check for specific AWS SES errors
     if (error.name === 'MessageRejected') {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'Email rejected. This may be due to unverified email addresses in sandbox mode.'
       };
     }
 
     if (error.code === 'InvalidClientTokenId' || error.code === 'SignatureDoesNotMatch') {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'Invalid AWS credentials. Please check your AWS configuration.'
       };
     }
 
-    return { 
-      success: false, 
+    return {
+      success: false,
       error: `Failed to send email: ${error.message}`
     };
   }
