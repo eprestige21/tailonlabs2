@@ -1,6 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useLocation as useWouterLocation } from "wouter";
 import { Button } from "./button";
 import {
   LayoutDashboard,
@@ -42,6 +42,15 @@ function SidebarLink({ href, icon, children, active }: SidebarLinkProps) {
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { logoutMutation } = useAuth();
+  const [, setLocation] = useWouterLocation();
+
+  const handleLogout = () => {
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        setLocation("/auth");
+      }
+    });
+  };
 
   const links = [
     { href: "/", icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard" },
@@ -80,7 +89,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Button
               variant="ghost"
               className="w-full justify-start"
-              onClick={() => logoutMutation.mutate()}
+              onClick={handleLogout}
             >
               <LogOut className="mr-2 h-4 w-4" />
               Logout
