@@ -207,6 +207,8 @@ export function setupAuth(app: Express) {
       // Only attempt to send email if AWS credentials are configured
       if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
         const resetUrl = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
+        console.log(`[Auth] Attempting to send password reset email to: ${email.substring(0, 3)}...`);
+        console.log(`[Auth] Using SES configuration - Region: ${process.env.AWS_REGION}, From: ${process.env.SES_FROM_EMAIL}`);
 
         const params = {
           Source: process.env.SES_FROM_EMAIL,
@@ -233,7 +235,21 @@ export function setupAuth(app: Express) {
           },
         };
 
-        await sesClient.send(new SendEmailCommand(params));
+        try {
+          console.log('[Auth] Sending email via AWS SES...');
+          const result = await sesClient.send(new SendEmailCommand(params));
+          console.log(`[Auth] Email sent successfully. MessageId: ${result.MessageId}`);
+        } catch (error: any) {
+          console.error('[Auth] Failed to send email via AWS SES:', error);
+          console.error('[Auth] Error details:', {
+            code: error.code,
+            message: error.message,
+            requestId: error.$metadata?.requestId
+          });
+          // Don't expose the error to the client, maintain the same response
+        }
+      } else {
+        console.log('[Auth] AWS credentials not configured, skipping email send');
       }
 
       res.status(200).json({
