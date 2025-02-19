@@ -8,7 +8,8 @@ import { User as SelectUser, InsertUser } from "@shared/schema";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import crypto from 'crypto';
 
-// Initialize AWS SES
+// Initialize AWS SES with explicit logging
+console.log('[Auth] Initializing AWS SES client with region:', process.env.AWS_REGION);
 const sesClient = new SESClient({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
@@ -191,11 +192,14 @@ export function setupAuth(app: Express) {
 
       const user = await storage.getUserByEmail(email);
       if (!user) {
+        console.log(`[Auth] No user found with email: ${email}`);
         // Don't reveal whether the email exists
         return res.status(200).json({
           message: "If an account exists with this email, you will receive a password reset link."
         });
       }
+
+      console.log(`[Auth] User found with email: ${email}`);
 
       // Generate reset token
       const resetToken = crypto.randomBytes(32).toString('hex');
@@ -242,9 +246,19 @@ export function setupAuth(app: Express) {
           const result = await sesClient.send(new SendEmailCommand(params));
           console.log(`[Auth] Email sent successfully. MessageId: ${result.MessageId}`);
 
+          if (process.env.NODE_ENV === 'development') {
+            return res.status(200).json({
+              message: "Password reset email sent successfully. Please check your inbox.",
+              debug: { 
+                emailSent: true, 
+                messageId: result.MessageId,
+                resetUrl // Include reset URL in development for testing
+              }
+            });
+          }
+
           res.status(200).json({
-            message: "If an account exists with this email, you will receive a password reset link.",
-            debug: process.env.NODE_ENV === 'development' ? { emailSent: true, messageId: result.MessageId } : undefined
+            message: "If an account exists with this email, you will receive a password reset link."
           });
         } catch (error: any) {
           console.error('[Auth] Failed to send email via AWS SES:', error);
@@ -257,10 +271,11 @@ export function setupAuth(app: Express) {
           // In development, return more detailed error information
           if (process.env.NODE_ENV === 'development') {
             return res.status(500).json({
-              message: "Failed to send password reset email. Please try again later.",
+              message: "Failed to send password reset email",
               error: {
                 code: error.code,
-                message: error.message
+                message: error.message,
+                details: "Check server logs for more information"
               }
             });
           }
@@ -271,9 +286,12 @@ export function setupAuth(app: Express) {
           });
         }
       } else {
-        console.log('[Auth] AWS credentials not configured, skipping email send');
+        console.log('[Auth] AWS credentials not configured properly');
+        console.log('[Auth] AWS_ACCESS_KEY_ID exists:', !!process.env.AWS_ACCESS_KEY_ID);
+        console.log('[Auth] AWS_SECRET_ACCESS_KEY exists:', !!process.env.AWS_SECRET_ACCESS_KEY);
+        console.log('[Auth] SES_FROM_EMAIL:', process.env.SES_FROM_EMAIL);
         return res.status(500).json({
-          message: "Email service is not configured. Please contact support."
+          message: "Email service is not configured properly. Please contact support."
         });
       }
     } catch (error) {

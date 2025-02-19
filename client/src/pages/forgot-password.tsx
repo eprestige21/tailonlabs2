@@ -36,11 +36,13 @@ export default function ForgotPassword() {
   const resetPasswordMutation = useMutation({
     mutationFn: async (data: ForgotPasswordForm) => {
       const response = await apiRequest("POST", "/api/forgot-password", data);
+      const responseData = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to send reset link");
+        throw new Error(responseData.message || "Failed to send reset link");
       }
-      return response.json();
+
+      return responseData;
     },
     onSuccess: (data) => {
       toast({
