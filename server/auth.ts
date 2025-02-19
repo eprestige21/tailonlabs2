@@ -135,7 +135,7 @@ export function setupAuth(app: Express) {
     passport.authenticate("local", (err: Error | null, user: SelectUser | false, info: { message: string } | undefined) => {
       if (err) {
         console.error("Login error:", err);
-        return next(err);
+        return res.status(500).json({ message: "Internal server error" });
       }
       if (!user) {
         console.log(`[Auth] Login failed: ${info?.message}`);
@@ -144,7 +144,7 @@ export function setupAuth(app: Express) {
       req.login(user, (err) => {
         if (err) {
           console.error("Session error:", err);
-          return next(err);
+          return res.status(500).json({ message: "Failed to establish session" });
         }
         // Don't send password hash back to client
         const { password, ...userWithoutPassword } = user;
