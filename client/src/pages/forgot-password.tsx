@@ -35,16 +35,21 @@ export default function ForgotPassword() {
 
   const resetPasswordMutation = useMutation({
     mutationFn: async (data: ForgotPasswordForm) => {
+      console.log('Sending password reset request for:', data.email);
       const response = await apiRequest("POST", "/api/forgot-password", data);
       const responseData = await response.json();
 
+      console.log('Password reset response:', responseData);
+
       if (!response.ok) {
+        console.error('Password reset error:', responseData);
         throw new Error(responseData.message || "Failed to send reset link");
       }
 
       return responseData;
     },
     onSuccess: (data) => {
+      console.log('Password reset success:', data);
       toast({
         title: "Reset link sent",
         description: data.message || "If an account exists with this email, you will receive a password reset link.",
@@ -52,6 +57,7 @@ export default function ForgotPassword() {
       form.reset();
     },
     onError: (error: Error) => {
+      console.error('Password reset mutation error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to send reset link. Please try again later.",
