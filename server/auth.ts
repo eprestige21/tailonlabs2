@@ -5,92 +5,75 @@ import session from "express-session";
 import { hash, compare } from "bcrypt";
 import { storage } from "./storage";
 import { User as SelectUser, InsertUser } from "@shared/schema";
-import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+import sgMail from '@sendgrid/mail';
 import crypto from 'crypto';
 
-// Initialize SES client with the correct endpoint format
-const sesClient = new SESClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
-  }
-});
+if (!process.env.SENDGRID_API_KEY) {
+  console.warn('[Auth] SENDGRID_API_KEY not set. Email functionality will be disabled.');
+}
 
 if (!process.env.SES_FROM_EMAIL?.includes('@')) {
   console.error('[Auth] SES_FROM_EMAIL must be a valid email address');
   throw new Error('Invalid SES_FROM_EMAIL configuration');
 }
 
+// Initialize SendGrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+
 async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<{ success: boolean; error?: string }> {
   try {
-    if (!process.env.SES_FROM_EMAIL) {
-      console.error('[Auth] Missing SES_FROM_EMAIL configuration');
+    if (!process.env.SENDGRID_API_KEY) {
+      console.error('[Auth] Missing SENDGRID_API_KEY configuration');
       return { success: false, error: 'Email service configuration missing' };
     }
 
-    console.log('[Auth] SES Configuration:', {
-      region: process.env.AWS_REGION || 'us-east-1',
+    if (!process.env.SES_FROM_EMAIL) {
+      console.error('[Auth] Missing SES_FROM_EMAIL configuration');
+      return { success: false, error: 'Sender email configuration missing' };
+    }
+
+    console.log('[Auth] SendGrid Configuration:', {
       fromEmail: process.env.SES_FROM_EMAIL,
-      hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
-      hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY
+      hasApiKey: !!process.env.SENDGRID_API_KEY
     });
 
-    const params = {
-      Source: process.env.SES_FROM_EMAIL,
-      Destination: {
-        ToAddresses: [email]
-      },
-      Message: {
-        Subject: {
-          Data: 'Password Reset Request'
-        },
-        Body: {
-          Text: {
-            Data: `To reset your password, click this link: ${resetUrl}\n\nThis link will expire in 1 hour.`
-          },
-          Html: {
-            Data: `
-              <h2>Password Reset Request</h2>
-              <p>You requested to reset your password.</p>
-              <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
-              <p>If you didn't request this, please ignore this email.</p>
-              <p>This link will expire in 1 hour.</p>
-            `
-          }
-        }
-      }
+    const msg = {
+      to: email,
+      from: process.env.SES_FROM_EMAIL,
+      subject: 'Password Reset Request',
+      text: `To reset your password, click this link: ${resetUrl}\n\nThis link will expire in 1 hour.`,
+      html: `
+        <h2>Password Reset Request</h2>
+        <p>You requested to reset your password.</p>
+        <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+        <p>This link will expire in 1 hour.</p>
+      `
     };
 
-    console.log('[Auth] Attempting to send email via AWS SES');
-    const result = await sesClient.send(new SendEmailCommand(params));
+    console.log('[Auth] Attempting to send email via SendGrid');
+    await sgMail.send(msg);
 
-    console.log('[Auth] Email sent successfully:', {
-      messageId: result.MessageId,
-      requestId: result.$metadata?.requestId
-    });
-
+    console.log('[Auth] Email sent successfully');
     return { success: true };
   } catch (error: any) {
-    console.error('[Auth] AWS SES Error:', {
-      code: error.Code || error.code,
+    console.error('[Auth] SendGrid Error:', {
+      code: error.code,
       message: error.message,
-      name: error.name,
-      stack: error.stack,
-      requestId: error.$metadata?.requestId
+      response: error.response?.body
     });
 
-    if (error.name === 'MessageRejected') {
+    if (error.code === 401) {
       return {
         success: false,
-        error: 'Email rejected. Please verify the sender and recipient email addresses.'
+        error: 'Invalid SendGrid API key. Please check your configuration.'
       };
     }
 
-    if (error.code === 'InvalidClientTokenId' || error.code === 'SignatureDoesNotMatch') {
+    if (error.code === 403) {
       return {
         success: false,
-        error: 'Invalid AWS credentials. Please check your AWS configuration.'
+        error: 'Sender email not verified with SendGrid.'
       };
     }
 
@@ -304,12 +287,12 @@ export function setupAuth(app: Express) {
       // Store reset token in database first
       await storage.storeResetToken(user.id, resetToken, resetTokenExpiry);
 
-      // Check if AWS credentials are configured
-      if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
-        console.error('[Auth] AWS credentials not properly configured');
+      // Check if SendGrid API key is configured
+      if (!process.env.SENDGRID_API_KEY) {
+        console.error('[Auth] SendGrid API key not configured');
         return res.status(500).json({
           message: "Email service is not configured properly. Please try again later.",
-          details: "Missing AWS credentials"
+          details: "Missing SendGrid API key"
         });
       }
 
