@@ -11,6 +11,18 @@ export const users = pgTable("users", {
   businessId: integer("business_id").references(() => businesses.id),
   resetToken: text("reset_token"),
   resetTokenExpires: timestamp("reset_token_expires"),
+  phoneNumber: text("phone_number"),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
+});
+
+export const userApiKeys = pgTable("user_api_keys", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  name: text("name").notNull(),
+  key: text("key").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastUsed: timestamp("last_used"),
+  expiresAt: timestamp("expires_at"),
 });
 
 export const businesses = pgTable("businesses", {
