@@ -18,6 +18,8 @@ export const businesses = pgTable("businesses", {
   name: text("name").notNull(),
   description: text("description"),
   website: text("website"),
+  address: text("address"),
+  phoneNumber: text("phone_number"),
   apiIntegrations: jsonb("api_integrations").$type<{
     chatgpt?: { enabled: boolean; apiKey?: string };
     twilio?: { enabled: boolean; accountSid?: string; authToken?: string };
