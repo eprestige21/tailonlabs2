@@ -12,6 +12,11 @@ export const users = pgTable("users", {
   resetToken: text("reset_token"),
   resetTokenExpires: timestamp("reset_token_expires"),
   phoneNumber: text("phone_number"),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  city: text("city"),
+  state: text("state"),
+  zipCode: text("zip_code"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
 });
 
@@ -54,8 +59,8 @@ export const businesses = pgTable("businesses", {
 export const usageHistory = pgTable("usage_history", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
-  service: text("service").notNull(), 
-  quantity: decimal("quantity").notNull(), 
+  service: text("service").notNull(),
+  quantity: decimal("quantity").notNull(),
   cost: decimal("cost").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
@@ -63,11 +68,11 @@ export const usageHistory = pgTable("usage_history", {
 export const billingTransactions = pgTable("billing_transactions", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
-  type: text("type").notNull(), 
+  type: text("type").notNull(),
   amount: decimal("amount").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   description: text("description"),
-  status: text("status").notNull(), 
+  status: text("status").notNull(),
 });
 
 export const voiceSettings = pgTable("voice_settings", {
@@ -117,11 +122,11 @@ export const knowledgeBase = pgTable("knowledge_base", {
   id: serial("id").primaryKey(),
   agentId: integer("agent_id").references(() => agents.id),
   title: text("title").notNull(),
-  type: text("type").notNull(), 
+  type: text("type").notNull(),
   content: text("content").notNull(),
   metadata: jsonb("metadata").$type<{
     sourceUrl?: string;
-    originalContent?: string; 
+    originalContent?: string;
     mimeType?: string;
     fileSize?: number;
   }>(),
@@ -129,18 +134,63 @@ export const knowledgeBase = pgTable("knowledge_base", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
+export const insertUserSchema = createInsertSchema(users).extend({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+}).pick({
   username: true,
   email: true,
   password: true,
+  firstName: true,
+  lastName: true,
+  city: true,
+  state: true,
+  zipCode: true,
 });
+
+export const updateUserProfileSchema = createInsertSchema(users).extend({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  phoneNumber: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+}).pick({
+  firstName: true,
+  lastName: true,
+  phoneNumber: true,
+  city: true,
+  state: true,
+  zipCode: true,
+});
+
+export const insertApiKeySchema = createInsertSchema(userApiKeys).pick({
+  name: true,
+});
+
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof users.$inferSelect;
+export type Business = typeof businesses.$inferSelect;
+export type UsageHistory = typeof usageHistory.$inferSelect;
+export type BillingTransaction = typeof billingTransactions.$inferSelect;
+export type VoiceSettings = typeof voiceSettings.$inferSelect;
+export type InsertVoiceSettings = z.infer<typeof insertVoiceSettingsSchema>;
+export type InsertAgent = z.infer<typeof insertAgentSchema>;
+export type Agent = typeof agents.$inferSelect;
+export type AgentFunction = typeof agentFunctions.$inferSelect;
+export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
+export type InsertAgentFunction = z.infer<typeof insertAgentFunctionSchema>;
+export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 
 export const insertBusinessSchema = createInsertSchema(businesses).pick({
   name: true,
   description: true,
   website: true,
 });
-
 export const insertUsageHistorySchema = createInsertSchema(usageHistory).pick({
   service: true,
   quantity: true,
@@ -193,17 +243,3 @@ export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick(
   content: true,
   metadata: true,
 });
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
-export type Business = typeof businesses.$inferSelect;
-export type UsageHistory = typeof usageHistory.$inferSelect;
-export type BillingTransaction = typeof billingTransactions.$inferSelect;
-export type VoiceSettings = typeof voiceSettings.$inferSelect;
-export type InsertVoiceSettings = z.infer<typeof insertVoiceSettingsSchema>;
-export type InsertAgent = z.infer<typeof insertAgentSchema>;
-export type Agent = typeof agents.$inferSelect;
-export type AgentFunction = typeof agentFunctions.$inferSelect;
-export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
-export type InsertAgentFunction = z.infer<typeof insertAgentFunctionSchema>;
-export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;

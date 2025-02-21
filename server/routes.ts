@@ -8,6 +8,9 @@ import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
 import { hash } from "bcrypt";
 import { deploymentManager } from "./deploy";
+import crypto from 'crypto';
+import {userApiKeys} from "@shared/schema"; // Assuming userApiKeys is defined in schema
+
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add health check endpoint for deployment monitoring
@@ -574,6 +577,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .where(eq(users.id, userId));
 
     res.status(204).send();
+  });
+
+  // Account profile update endpoint
+  app.patch("/api/account/profile", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    try {
+      const [user] = await db
+        .update(users)
+        .set({
+          firstName: req.body.firstName,
+          lastName: req.body.lastName,
+          phoneNumber: req.body.phoneNumber,
+          city: req.body.city,
+          state: req.body.state,
+          zipCode: req.body.zipCode,
+        })
+        .where(eq(users.id, req.user.id))
+        .returning();
+
+      const { password, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Profile update error:", error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // API Keys endpoints
+  app.get("/api/account/api-keys", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    try {
+      const apiKeys = await db
+        .select()
+        .from(userApiKeys)
+        .where(eq(userApiKeys.userId, req.user.id))
+        .orderBy(desc(userApiKeys.createdAt));
+
+      res.json(apiKeys);
+    } catch (error) {
+      console.error("API keys fetch error:", error);
+      res.status(500).json({ message: "Failed to fetch API keys" });
+    }
+  });
+
+  app.post("/api/account/api-keys", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    try {
+      const apiKey = crypto.randomBytes(32).toString('hex');
+      const [newKey] = await db
+        .insert(userApiKeys)
+        .values({
+          userId: req.user.id,
+          name: req.body.name,
+          key: apiKey,
+        })
+        .returning();
+
+      res.status(201).json({ ...newKey, key: apiKey });
+    } catch (error) {
+      console.error("API key creation error:", error);
+      res.status(500).json({ message: "Failed to create API key" });
+    }
+  });
+
+  app.delete("/api/account/api-keys/:id", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    try {
+      await db
+        .delete(userApiKeys)
+        .where(
+          and(
+            eq(userApiKeys.id, parseInt(req.params.id)),
+            eq(userApiKeys.userId, req.user.id)
+          )
+        );
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("API key deletion error:", error);
+      res.status(500).json({ message: "Failed to delete API key" });
+    }
   });
 
   const httpServer = createServer(app);

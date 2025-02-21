@@ -15,6 +15,7 @@ import AnalyticsPage from "@/pages/analytics";
 import UsageStatsPage from "@/pages/usage-stats";
 import Users from "@/pages/users";
 import ForgotPassword from "@/pages/forgot-password";
+import AccountSettings from "@/pages/account-settings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,7 @@ function Router() {
       <ProtectedRoute path="/analytics" component={AnalyticsPage} />
       <ProtectedRoute path="/usage-stats" component={UsageStatsPage} />
       <ProtectedRoute path="/users" component={Users} />
+      <ProtectedRoute path="/account" component={AccountSettings} />
       <Route component={NotFound} />
     </Switch>
   );
