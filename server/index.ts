@@ -61,7 +61,7 @@ app.use((req, res, next) => {
 
     // Start the server
     const PORT = Number(process.env.PORT) || 5000;
-    server.listen(PORT, () => {
+    server.listen(PORT, "0.0.0.0", () => {
       log(`Server started successfully on port ${PORT}`);
       log(`Server URL: http://0.0.0.0:${PORT}`);
     });
