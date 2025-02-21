@@ -13,6 +13,7 @@ import {
   BarChart3,
   Activity,
   Users,
+  Settings,
 } from "lucide-react";
 
 interface SidebarLinkProps {
@@ -64,6 +65,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     { href: "/usage-stats", icon: <Activity className="h-4 w-4" />, label: "Usage Stats" },
     { href: "/billing", icon: <CreditCard className="h-4 w-4" />, label: "Billing" },
     { href: "/voice-settings", icon: <Volume2 className="h-4 w-4" />, label: "Voice Settings" },
+    { href: "/account", icon: <Settings className="h-4 w-4" />, label: "Account Settings" },
   ];
 
   return (
