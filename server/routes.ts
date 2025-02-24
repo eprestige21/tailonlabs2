@@ -39,15 +39,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).send("Unauthorized");
     }
 
-    const [business] = await db
-      .select()
-      .from(businesses)
-      .where(eq(businesses.id, parseInt(req.params.id)));
+    try {
+      const [business] = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.id, parseInt(req.params.id)));
 
-    if (!business) {
-      return res.status(404).send("Business not found");
+      if (!business) {
+        return res.status(404).send("Business not found");
+      }
+      res.json(business);
+    } catch (error) {
+      console.error('Error fetching business:', error);
+      res.status(500).json({ message: "Failed to fetch business details" });
     }
-    res.json(business);
   });
 
   app.post("/api/business", async (req, res) => {
@@ -56,10 +61,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
+      console.log('Creating business with data:', req.body);
       const [business] = await db
         .insert(businesses)
         .values({
-          ...req.body,
+          name: req.body.name,
+          description: req.body.description,
+          website: req.body.website,
+          address: req.body.address,
+          phoneNumber: req.body.phoneNumber,
           billingInfo: {
             balance: 0,
             autoRechargeThreshold: 10,
@@ -67,6 +77,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         })
         .returning();
+
+      console.log('Business created:', business);
 
       // Update user with the new business ID
       await db
@@ -77,7 +89,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(business);
     } catch (error) {
       console.error('Error creating business:', error);
-      res.status(500).json({ message: "Failed to create business" });
+      res.status(500).json({ 
+        message: "Failed to create business",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  app.patch("/api/business/:id", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    try {
+      const [business] = await db
+        .update(businesses)
+        .set({
+          name: req.body.name,
+          description: req.body.description,
+          website: req.body.website,
+          address: req.body.address,
+          phoneNumber: req.body.phoneNumber,
+        })
+        .where(eq(businesses.id, parseInt(req.params.id)))
+        .returning();
+
+      if (!business) {
+        return res.status(404).json({ message: "Business not found" });
+      }
+
+      res.json(business);
+    } catch (error) {
+      console.error('Error updating business:', error);
+      res.status(500).json({ 
+        message: "Failed to update business",
+        details: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 
