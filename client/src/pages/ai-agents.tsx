@@ -1,16 +1,15 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Agent } from "@shared/schema";
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Bot } from "lucide-react";
-
 
 export default function AIAgentsPage() {
   const { user } = useAuth();
@@ -22,26 +21,6 @@ export default function AIAgentsPage() {
     enabled: !!user?.businessId,
   });
 
-  const addMutation = useMutation({
-    mutationFn: async (data: any) => { 
-      await apiRequest("POST", "/api/agents", data);
-    },
-    onSuccess: () => {
-      setShowAddDialog(false);
-      toast({
-        title: "Agent created",
-        description: "New AI agent has been created successfully.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to create agent",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   if (!user?.businessId) {
     return null;
   }
@@ -51,25 +30,16 @@ export default function AIAgentsPage() {
       <PageHeader
         title="AI Agents"
         description="Create and manage your AI agents"
-        action={
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Create New Agent
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                <DialogTitle>Create New AI Agent</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={() => {}} className="space-y-4">
-                <div>Placeholder for Form</div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        }
       />
+
+      <div className="flex justify-end mb-6">
+        <Link href="/ai-agent/new">
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Create New Agent
+          </Button>
+        </Link>
+      </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center p-8">
