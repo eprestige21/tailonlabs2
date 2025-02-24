@@ -47,7 +47,7 @@ export default function AIAgentsPage() {
         title="AI Agents"
         description="Manage your AI agents and their configurations"
         action={
-          <Button onClick={() => setLocation("/ai-agent")}>
+          <Button onClick={() => setLocation("/ai-agent/new")}>
             <Plus className="mr-2 h-4 w-4" /> Add New Agent
           </Button>
         }
