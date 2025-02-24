@@ -10,6 +10,7 @@ import BusinessProfile from "@/pages/business-profile";
 import ApiIntegrations from "@/pages/api-integrations";
 import Billing from "@/pages/billing";
 import VoiceSettings from "@/pages/voice-settings";
+import AIAgentsPage from "@/pages/ai-agents";
 import AIAgentPage from "@/pages/ai-agent";
 import AnalyticsPage from "@/pages/analytics";
 import UsageStatsPage from "@/pages/usage-stats";
@@ -37,7 +38,9 @@ function Router() {
       <ProtectedRoute path="/integrations" component={ApiIntegrations} />
       <ProtectedRoute path="/billing" component={Billing} />
       <ProtectedRoute path="/voice-settings" component={VoiceSettings} />
+      <ProtectedRoute path="/ai-agents" component={AIAgentsPage} />
       <ProtectedRoute path="/ai-agent" component={AIAgentPage} />
+      <ProtectedRoute path="/ai-agent/:id" component={AIAgentPage} />
       <ProtectedRoute path="/analytics" component={AnalyticsPage} />
       <ProtectedRoute path="/usage-stats" component={UsageStatsPage} />
       <ProtectedRoute path="/users" component={Users} />
