@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { businesses, agents, agentFunctions, knowledgeBase, usageHistory, billingTransactions, voiceSettings, users } from "@shared/schema";
+import { businesses, agents, agentFunctions, knowledgeBase, usageHistory, billingTransactions, voiceSettings, users, agentEvaluations } from "@shared/schema";
 import { eq, and, gte, desc, lte } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
@@ -669,6 +669,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("API key deletion error:", error);
       res.status(500).json({ message: "Failed to delete API key" });
+    }
+  });
+
+  // Agent evaluation routes
+  app.get("/api/agent-evaluations", async (req, res) => {
+    try {
+      if (!req.user?.businessId) {
+        return res.status(400).json({ message: "Business ID is required" });
+      }
+
+      const evaluations = await db
+        .select({
+          evaluation: agentEvaluations,
+          agent: agents,
+        })
+        .from(agentEvaluations)
+        .innerJoin(agents, eq(agentEvaluations.agentId, agents.id))
+        .where(eq(agents.businessId, req.user.businessId))
+        .orderBy(desc(agentEvaluations.evaluationDate));
+
+      res.json(evaluations);
+    } catch (error) {
+      console.error('Error fetching evaluations:', error);
+      res.status(500).json({ message: "Failed to fetch evaluations" });
+    }
+  });
+
+  app.get("/api/agents/:agentId/evaluations", async (req, res) => {
+    try {
+      if (!req.user?.businessId) {
+        return res.status(400).json({ message: "Business ID is required" });
+      }
+
+      // Verify the agent belongs to the user's business
+      const [agent] = await db
+        .select()
+        .from(agents)
+        .where(
+          and(
+            eq(agents.id, parseInt(req.params.agentId)),
+            eq(agents.businessId, req.user.businessId)
+          )
+        );
+
+      if (!agent) {
+        return res.status(404).json({ message: "Agent not found" });
+      }
+
+      const evaluations = await db
+        .select()
+        .from(agentEvaluations)
+        .where(eq(agentEvaluations.agentId, parseInt(req.params.agentId)))
+        .orderBy(desc(agentEvaluations.evaluationDate));
+
+      res.json(evaluations);
+    } catch (error) {
+      console.error('Error fetching agent evaluations:', error);
+      res.status(500).json({ message: "Failed to fetch evaluations" });
     }
   });
 

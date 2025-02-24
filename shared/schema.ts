@@ -134,6 +134,25 @@ export const knowledgeBase = pgTable("knowledge_base", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const agentEvaluations = pgTable("agent_evaluations", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").references(() => agents.id),
+  conversationId: text("conversation_id").notNull(),
+  score: decimal("score").notNull(),
+  evaluationDate: timestamp("evaluation_date").defaultNow().notNull(),
+  feedback: text("feedback"),
+  correctResponses: integer("correct_responses").notNull(),
+  totalQuestions: integer("total_questions").notNull(),
+  details: jsonb("details").$type<{
+    questions: Array<{
+      question: string;
+      expectedAnswer: string;
+      actualAnswer: string;
+      correct: boolean;
+    }>;
+  }>(),
+});
+
 export const insertUserSchema = createInsertSchema(users).extend({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
@@ -171,6 +190,16 @@ export const insertApiKeySchema = createInsertSchema(userApiKeys).pick({
   name: true,
 });
 
+export const insertAgentEvaluationSchema = createInsertSchema(agentEvaluations).pick({
+  agentId: true,
+  conversationId: true,
+  score: true,
+  feedback: true,
+  correctResponses: true,
+  totalQuestions: true,
+  details: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Business = typeof businesses.$inferSelect;
@@ -185,6 +214,8 @@ export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
 export type InsertAgentFunction = z.infer<typeof insertAgentFunctionSchema>;
 export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+export type AgentEvaluation = typeof agentEvaluations.$inferSelect;
+export type InsertAgentEvaluation = z.infer<typeof insertAgentEvaluationSchema>;
 
 export const insertBusinessSchema = createInsertSchema(businesses).pick({
   name: true,
