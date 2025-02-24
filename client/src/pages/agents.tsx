@@ -1,58 +1,22 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { Agent } from "@shared/schema";
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, MessageCircle, Bot, Zap } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Plus, Bot, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { Agent, InsertAgent } from "@shared/schema";
-import { Redirect } from "wouter";
-import { Loader2 } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const GPT_MODELS = [
-  { id: "gpt-4o", name: "GPT-4 Omega (Latest)" },
-  { id: "gpt-4", name: "GPT-4" },
-  { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo" },
-];
 
 export default function Agents() {
   console.log("Rendering Agents page"); // Debug log
   const { user } = useAuth();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState<number | null>(null);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [testPrompt, setTestPrompt] = useState("");
-  const [testResults, setTestResults] = useState<Record<number, string>>({});
 
   const { data: agents = [], isLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
@@ -78,67 +42,59 @@ export default function Agents() {
         description="Create and manage your AI agents"
       />
 
-      <div className="flex justify-end mt-8">
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Agent
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Create New AI Agent</DialogTitle>
-            </DialogHeader>
-            <div>Create agent form will go here</div>
-          </DialogContent>
-        </Dialog>
+      <div className="flex justify-end mb-6">
+        <Link href="/ai-agent/new">
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Create New Agent
+          </Button>
+        </Link>
       </div>
 
-      <div className="grid gap-6 mt-4">
-        {agents.map((agent) => (
-          <Card key={agent.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Bot className="h-5 w-5 text-primary" />
-                  <CardTitle>{agent.name}</CardTitle>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="text-sm text-muted-foreground">
-                    {format(new Date(agent.updatedAt), "MMM d, yyyy HH:mm")}
+      {agents.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-8">
+          <Bot className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium">No agents yet</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Create your first AI agent to get started
+          </p>
+          <Link href="/ai-agent/new">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Create New Agent
+            </Button>
+          </Link>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {agents.map((agent) => (
+            <Link key={agent.id} href={`/ai-agent/${agent.id}`}>
+              <Card className="cursor-pointer hover:border-primary transition-colors">
+                <CardHeader>
+                  <div className="flex items-center space-x-2">
+                    <Bot className="h-5 w-5 text-primary" />
+                    <CardTitle>{agent.name}</CardTitle>
                   </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    {agent.description || "No description provided"}
+                  </p>
                   {agent.isActive ? (
-                    <div className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                    <div className="mt-2 inline-flex px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
                       Active
                     </div>
                   ) : (
-                    <div className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
+                    <div className="mt-2 inline-flex px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
                       Inactive
                     </div>
                   )}
-                </div>
-              </div>
-              <CardDescription className="mt-2">
-                Using {GPT_MODELS.find(m => m.id === agent.model)?.name || agent.model}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                {agent.description || "No description provided"}
-              </p>
-            </CardContent>
-            <CardFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsEditing(agent.id)}
-              >
-                Edit Agent Settings
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
     </DashboardShell>
   );
 }
