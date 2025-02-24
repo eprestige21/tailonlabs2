@@ -1,6 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { Link, useLocation, useLocation as useWouterLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "./button";
 import {
   LayoutDashboard,
@@ -44,17 +44,6 @@ function SidebarLink({ href, icon, children, active }: SidebarLinkProps) {
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { logoutMutation } = useAuth();
-  const [, setLocation] = useWouterLocation();
-
-  const handleLogout = async () => {
-    try {
-      await logoutMutation.mutateAsync(undefined);
-      // Force redirect to auth page after successful logout
-      window.location.href = "/auth";
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-  };
 
   const links = [
     { href: "/", icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard" },
@@ -95,7 +84,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Button
               variant="ghost"
               className="w-full justify-start"
-              onClick={handleLogout}
+              onClick={async () => {
+                try {
+                  await logoutMutation.mutateAsync(undefined);
+                  window.location.href = "/auth";
+                } catch (error) {
+                  console.error("Logout failed:", error);
+                }
+              }}
               disabled={logoutMutation.isPending}
             >
               <LogOut className="mr-2 h-4 w-4" />
