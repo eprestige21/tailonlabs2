@@ -7,6 +7,10 @@ import { storage } from "./storage";
 import { User as SelectUser, InsertUser } from "@shared/schema";
 import sgMail from '@sendgrid/mail';
 import crypto from 'crypto';
+import { send2FAVerificationEmail } from "./services/email";
+import { db } from "./db";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 if (!process.env.SENDGRID_API_KEY) {
   console.warn('[Auth] SENDGRID_API_KEY not set. Email functionality will be disabled.');
@@ -376,6 +380,125 @@ export function setupAuth(app: Express) {
     const { password, ...userWithoutPassword } = req.user;
     console.log(`[Auth] User data retrieved for: ${req.user.id}`);
     res.json(userWithoutPassword);
+  });
+
+  // Enable 2FA for a user
+  app.post("/api/2fa/enable", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    try {
+      // Update user to enable 2FA
+      await db
+        .update(users)
+        .set({
+          twoFactorEnabled: true,
+        })
+        .where(eq(users.id, req.user.id));
+
+      // Generate and send verification code
+      const verificationCode = (Math.floor(100000 + Math.random() * 900000)).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+
+      await db
+        .update(users)
+        .set({
+          twoFactorTempSecret: verificationCode,
+          twoFactorTempSecretExpires: expiresAt,
+        })
+        .where(eq(users.id, req.user.id));
+
+      // Send verification email
+      const emailSent = await send2FAVerificationEmail(req.user.email, verificationCode);
+      if (!emailSent) {
+        return res.status(500).json({ message: "Failed to send verification email" });
+      }
+
+      res.status(200).json({ message: "2FA enabled, verification code sent" });
+    } catch (error) {
+      console.error("[2FA Enable] Error:", error);
+      res.status(500).json({ message: "Failed to enable 2FA" });
+    }
+  });
+
+  // Verify 2FA setup
+  app.post("/api/2fa/verify", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ message: "Verification code is required" });
+    }
+
+    try {
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, req.user.id));
+
+      if (!user.twoFactorTempSecret || !user.twoFactorTempSecretExpires) {
+        return res.status(400).json({ message: "No verification in progress" });
+      }
+
+      if (new Date() > user.twoFactorTempSecretExpires) {
+        return res.status(400).json({ message: "Verification code has expired" });
+      }
+
+      if (code !== user.twoFactorTempSecret) {
+        return res.status(400).json({ message: "Invalid verification code" });
+      }
+
+      // Generate backup codes
+      const backupCodes = Array.from({ length: 10 }, () =>
+        Math.random().toString(36).substr(2, 8)
+      );
+
+      // Update user as verified
+      await db
+        .update(users)
+        .set({
+          twoFactorVerified: true,
+          twoFactorTempSecret: null,
+          twoFactorTempSecretExpires: null,
+          twoFactorBackupCodes: backupCodes,
+        })
+        .where(eq(users.id, req.user.id));
+
+      res.status(200).json({
+        message: "2FA verified successfully",
+        backupCodes,
+      });
+    } catch (error) {
+      console.error("[2FA Verify] Error:", error);
+      res.status(500).json({ message: "Failed to verify 2FA" });
+    }
+  });
+
+  // Disable 2FA
+  app.post("/api/2fa/disable", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    try {
+      await db
+        .update(users)
+        .set({
+          twoFactorEnabled: false,
+          twoFactorVerified: false,
+          twoFactorSecret: null,
+          twoFactorBackupCodes: [],
+        })
+        .where(eq(users.id, req.user.id));
+
+      res.status(200).json({ message: "2FA disabled successfully" });
+    } catch (error) {
+      console.error("[2FA Disable] Error:", error);
+      res.status(500).json({ message: "Failed to disable 2FA" });
+    }
   });
 
   console.log('[Auth] Auth setup completed');

@@ -18,6 +18,11 @@ export const users = pgTable("users", {
   state: text("state"),
   zipCode: text("zip_code"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  twoFactorSecret: text("two_factor_secret"),
+  twoFactorVerified: boolean("two_factor_verified").default(false),
+  twoFactorBackupCodes: text("two_factor_backup_codes").array(),
+  twoFactorTempSecret: text("two_factor_temp_secret"),
+  twoFactorTempSecretExpires: timestamp("two_factor_temp_secret_expires"),
 });
 
 export const userApiKeys = pgTable("user_api_keys", {
