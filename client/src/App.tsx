@@ -10,7 +10,7 @@ import BusinessProfile from "@/pages/business-profile";
 import ApiIntegrations from "@/pages/api-integrations";
 import Billing from "@/pages/billing";
 import VoiceSettings from "@/pages/voice-settings";
-import AIAgents from "@/pages/ai-agents";
+import AIAgents from "@/pages/agents"; // This line is changed
 import AIAgentPage from "@/pages/ai-agent";
 import AnalyticsPage from "@/pages/analytics";
 import UsageStatsPage from "@/pages/usage-stats";

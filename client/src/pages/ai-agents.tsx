@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, Redirect } from "wouter";
+import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -17,7 +17,6 @@ export default function AIAgents() {
 
   const { data: agents = [], isLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
-    enabled: !!user?.businessId,
   });
 
   if (isLoading) {
@@ -28,10 +27,6 @@ export default function AIAgents() {
         </div>
       </DashboardShell>
     );
-  }
-
-  if (!user?.businessId) {
-    return <Redirect to="/business" />;
   }
 
   return (
