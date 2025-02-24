@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, Redirect } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -9,7 +9,7 @@ import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Bot } from "lucide-react";
+import { Plus, Bot, Loader2 } from "lucide-react";
 
 export default function AIAgents() {
   const { user } = useAuth();
@@ -20,8 +20,18 @@ export default function AIAgents() {
     enabled: !!user?.businessId,
   });
 
+  if (isLoading) {
+    return (
+      <DashboardShell>
+        <div className="flex items-center justify-center h-[50vh]">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </DashboardShell>
+    );
+  }
+
   if (!user?.businessId) {
-    return null;
+    return <Redirect to="/business" />;
   }
 
   return (
@@ -40,11 +50,7 @@ export default function AIAgents() {
         </Link>
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center p-8">
-          Loading agents...
-        </div>
-      ) : agents.length === 0 ? (
+      {agents.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-8">
           <Bot className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium">No agents yet</h3>
