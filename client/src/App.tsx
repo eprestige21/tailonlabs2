@@ -10,12 +10,13 @@ import BusinessProfile from "@/pages/business-profile";
 import ApiIntegrations from "@/pages/api-integrations";
 import Billing from "@/pages/billing";
 import VoiceSettings from "@/pages/voice-settings";
-import AIAgents from "@/pages/agents"; // This line is changed
+import AIAgents from "@/pages/agents"; 
 import AIAgentPage from "@/pages/ai-agent";
 import AnalyticsPage from "@/pages/analytics";
 import UsageStatsPage from "@/pages/usage-stats";
 import Users from "@/pages/users";
 import ForgotPassword from "@/pages/forgot-password";
+import Settings from "@/pages/settings";
 import AccountSettings from "@/pages/account-settings";
 import AgentEvaluations from "@/pages/agent-evaluations";
 
@@ -38,13 +39,13 @@ function Router() {
       <ProtectedRoute path="/integrations" component={ApiIntegrations} />
       <ProtectedRoute path="/billing" component={Billing} />
       <ProtectedRoute path="/voice-settings" component={VoiceSettings} />
-      {/* AI Agents routes */}
       <ProtectedRoute path="/ai-agents" component={AIAgents} />
       <ProtectedRoute path="/ai-agent/:id" component={AIAgentPage} />
       <ProtectedRoute path="/ai-agent/new" component={AIAgentPage} />
       <ProtectedRoute path="/analytics" component={AnalyticsPage} />
       <ProtectedRoute path="/usage-stats" component={UsageStatsPage} />
       <ProtectedRoute path="/users" component={Users} />
+      <ProtectedRoute path="/settings" component={Settings} />
       <ProtectedRoute path="/account" component={AccountSettings} />
       <ProtectedRoute path="/agent-evaluations" component={AgentEvaluations} />
       <Route component={NotFound} />
