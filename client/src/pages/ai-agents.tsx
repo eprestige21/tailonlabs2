@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Brain, Pencil, Trash2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -46,7 +47,7 @@ export default function AIAgentsPage() {
         title="AI Agents"
         description="Manage your AI agents and their configurations"
         action={
-          <Button onClick={() => setLocation("/ai-agent/new")}>
+          <Button onClick={() => setLocation("/ai-agent")}>
             <Plus className="mr-2 h-4 w-4" /> Add New Agent
           </Button>
         }
