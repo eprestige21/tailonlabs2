@@ -38,9 +38,10 @@ function Router() {
       <ProtectedRoute path="/integrations" component={ApiIntegrations} />
       <ProtectedRoute path="/billing" component={Billing} />
       <ProtectedRoute path="/voice-settings" component={VoiceSettings} />
+      {/* AI Agents routes */}
       <ProtectedRoute path="/ai-agents" component={AIAgentsPage} />
-      <ProtectedRoute path="/ai-agent/new" component={AIAgentPage} />
       <ProtectedRoute path="/ai-agent/:id" component={AIAgentPage} />
+      <ProtectedRoute path="/ai-agent/new" component={AIAgentPage} />
       <ProtectedRoute path="/analytics" component={AnalyticsPage} />
       <ProtectedRoute path="/usage-stats" component={UsageStatsPage} />
       <ProtectedRoute path="/users" component={Users} />
