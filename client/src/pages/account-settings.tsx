@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { updateUserProfileSchema } from "@shared/schema";
+import { updateUserProfileSchema, type User, type UserApiKey } from "@shared/schema";
 import type { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -48,7 +48,7 @@ export default function AccountSettings() {
     },
   });
 
-  const { data: apiKeys = [], isLoading: isLoadingKeys } = useQuery({
+  const { data: apiKeys = [], isLoading: isLoadingKeys } = useQuery<UserApiKey[]>({
     queryKey: ["/api/account/api-keys"],
     enabled: !!user,
   });

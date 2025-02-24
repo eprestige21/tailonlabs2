@@ -243,3 +243,5 @@ export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick(
   content: true,
   metadata: true,
 });
+
+export type UserApiKey = typeof userApiKeys.$inferSelect;
