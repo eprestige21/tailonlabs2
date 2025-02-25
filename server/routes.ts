@@ -2,14 +2,14 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { businesses, agents, agentFunctions, knowledgeBase, usageHistory, billingTransactions, voiceSettings, users, agentEvaluations } from "@shared/schema";
+import { businesses, agents, agentFunctions, knowledgeBase, usageHistory, billingTransactions, voiceSettings, users, agentEvaluations, insertBusinessSchema } from "@shared/schema";
 import { eq, and, gte, desc, lte } from "drizzle-orm";
 import { db } from "./db";
 import { subDays, subMonths, subYears, startOfDay } from "date-fns";
 import { hash } from "bcrypt";
 import { deploymentManager } from "./deploy";
 import crypto from 'crypto';
-import {userApiKeys} from "@shared/schema"; // Assuming userApiKeys is defined in schema
+import {userApiKeys} from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add health check endpoint for deployment monitoring
@@ -330,8 +330,8 @@ app.post("/api/business", async (req, res) => {
         return res.status(400).json({ message: "Business ID is required" });
       }
 
-      console.log('Creating agent with data:', req.body); // Debug log
-      console.log('User business ID:', req.user.businessId); // Debug log
+      console.log('Creating agent with data:', req.body); 
+      console.log('User business ID:', req.user.businessId); 
 
       const {
         name,
@@ -360,7 +360,7 @@ app.post("/api/business", async (req, res) => {
         })
         .returning();
 
-      console.log('Created agent:', agent); // Debug log
+      console.log('Created agent:', agent); 
       res.status(201).json(agent);
     } catch (error) {
       console.error('Error creating agent:', error);
@@ -554,7 +554,7 @@ app.post("/api/business", async (req, res) => {
       res.status(201).json(newUser);
     } catch (error: any) {
       console.error('Error creating user:', error);
-      if (error.code === "23505") { // Unique violation
+      if (error.code === "23505") { 
         res.status(400).json({ message: "Username already exists" });
       } else {
         res.status(500).json({ message: "Failed to create user" });
