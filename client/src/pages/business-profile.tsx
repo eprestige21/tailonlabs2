@@ -19,13 +19,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useLocation } from "wouter";
 import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
 
 export default function BusinessProfile() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
 
   const { data: business } = useQuery({
     queryKey: ["/api/business", user?.businessId],
@@ -45,7 +43,7 @@ export default function BusinessProfile() {
 
   const businessMutation = useMutation({
     mutationFn: async (data: InsertBusiness) => {
-      console.log("Submitting business data:", data); // Debug log
+      console.log("Submitting business data:", data);
       if (business) {
         const res = await apiRequest("PATCH", `/api/business/${business.id}`, data);
         if (!res.ok) {
@@ -62,7 +60,7 @@ export default function BusinessProfile() {
         return res.json();
       }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/business"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       toast({
@@ -71,12 +69,10 @@ export default function BusinessProfile() {
           ? "Your business profile has been updated."
           : "Your business profile has been created.",
       });
-      if (!business) {
-        setLocation("/knowledge-base");
-      }
+      // Reset form with new data
+      form.reset(data);
     },
     onError: (error: Error) => {
-      console.error("Business mutation error:", error); // Debug log
       toast({
         title: "Error",
         description: error.message,
@@ -86,7 +82,7 @@ export default function BusinessProfile() {
   });
 
   const onSubmit = (data: InsertBusiness) => {
-    console.log("Form data:", data); // Debug log
+    console.log("Form data:", data);
     businessMutation.mutate(data);
   };
 
@@ -155,7 +151,21 @@ export default function BusinessProfile() {
                         selectProps={{
                           value: field.value ? { label: field.value, value: field.value } : null,
                           onChange: (option: any) => {
-                            field.onChange(option?.label || '');
+                            // Extract full address including ZIP code
+                            const place = option?.value?.place;
+                            if (place?.address_components) {
+                              const components = place.address_components;
+                              const streetNumber = components.find((c: any) => c.types.includes('street_number'))?.long_name || '';
+                              const route = components.find((c: any) => c.types.includes('route'))?.long_name || '';
+                              const city = components.find((c: any) => c.types.includes('locality'))?.long_name || '';
+                              const state = components.find((c: any) => c.types.includes('administrative_area_level_1'))?.short_name || '';
+                              const zipCode = components.find((c: any) => c.types.includes('postal_code'))?.long_name || '';
+                              const fullAddress = `${streetNumber} ${route}, ${city}, ${state} ${zipCode}`.trim();
+                              field.onChange(fullAddress);
+                            } else {
+                              // Fallback to the label if we can't get structured data
+                              field.onChange(option?.label || '');
+                            }
                           },
                           placeholder: "Start typing your address...",
                           className: "w-full",
