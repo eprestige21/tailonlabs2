@@ -10,10 +10,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Bot, Loader2 } from "lucide-react";
-import { format } from "date-fns";
 
 export default function Agents() {
-  console.log("Rendering Agents page"); // Debug log
   const { user } = useAuth();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState<number | null>(null);
@@ -21,9 +19,6 @@ export default function Agents() {
   const { data: agents = [], isLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
   });
-
-  console.log("Agents data:", agents); // Debug log
-  console.log("Loading state:", isLoading); // Debug log
 
   if (isLoading) {
     return (
@@ -39,17 +34,8 @@ export default function Agents() {
     <DashboardShell>
       <PageHeader
         title="AI Agents"
-        description="Create and manage your AI agents"
+        description="View and manage your AI agents"
       />
-
-      <div className="flex justify-end mb-6">
-        <Link href="/ai-agent/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Create New Agent
-          </Button>
-        </Link>
-      </div>
 
       {agents.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-8">
@@ -61,7 +47,7 @@ export default function Agents() {
           <Link href="/ai-agent/new">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Create New Agent
+              Create First Agent
             </Button>
           </Link>
         </div>
