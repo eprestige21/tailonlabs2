@@ -27,7 +27,7 @@ export default function BusinessProfile() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { data: business, refetch } = useQuery({
+  const { data: business, refetch: refetchBusiness } = useQuery({
     queryKey: ["/api/business", user?.businessId],
     enabled: !!user?.businessId,
   });
@@ -52,9 +52,8 @@ export default function BusinessProfile() {
 
   const businessMutation = useMutation({
     mutationFn: async (data: InsertBusiness) => {
-      console.log("Submitting business data:", data);
-      if (business) {
-        const res = await apiRequest("PATCH", `/api/business/${business.id}`, data);
+      if (user?.businessId) {
+        const res = await apiRequest("PATCH", `/api/business/${user.businessId}`, data);
         if (!res.ok) {
           const error = await res.json();
           throw new Error(error.message || "Failed to update business");
@@ -70,16 +69,19 @@ export default function BusinessProfile() {
       }
     },
     onSuccess: async (data) => {
-      // Update queries to reflect the new business data
+      // Invalidate both queries to trigger a refetch
       queryClient.invalidateQueries({ queryKey: ["/api/business"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
 
-      // Wait for the business data to be refetched
-      await refetch();
+      // Wait for the queries to refetch
+      await Promise.all([
+        refetchBusiness(),
+        queryClient.refetchQueries({ queryKey: ["/api/user"] })
+      ]);
 
       toast({
-        title: business ? "Business updated" : "Business created",
-        description: business
+        title: user?.businessId ? "Business updated" : "Business created",
+        description: user?.businessId
           ? "Your business profile has been updated."
           : "Your business profile has been created.",
       });
@@ -101,12 +103,12 @@ export default function BusinessProfile() {
     <DashboardShell>
       <PageHeader
         title="Business Profile"
-        description={business ? "Manage your business information" : "Create your business profile"}
+        description={user?.businessId ? "Manage your business information" : "Create your business profile"}
       />
 
       <Card className="mt-8">
         <CardHeader>
-          <CardTitle>{business ? "Business Information" : "Create Business Profile"}</CardTitle>
+          <CardTitle>{user?.businessId ? "Business Information" : "Create Business Profile"}</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -162,7 +164,6 @@ export default function BusinessProfile() {
                         selectProps={{
                           value: field.value ? { label: field.value, value: field.value } : null,
                           onChange: (option: any) => {
-                            // Extract full address including ZIP code
                             const place = option?.value?.place;
                             if (place?.address_components) {
                               const components = place.address_components;
@@ -203,7 +204,7 @@ export default function BusinessProfile() {
                 type="submit" 
                 disabled={businessMutation.isPending}
               >
-                {business ? "Save Changes" : "Create Business"}
+                {user?.businessId ? "Save Changes" : "Create Business"}
               </Button>
             </form>
           </Form>
