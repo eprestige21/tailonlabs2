@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertBusinessSchema } from "@shared/schema";
+import { insertBusinessSchema, type InsertBusiness } from "@shared/schema";
 import {
   Form,
   FormControl,
@@ -32,7 +32,7 @@ export default function BusinessProfile() {
     enabled: !!user?.businessId,
   });
 
-  const form = useForm({
+  const form = useForm<InsertBusiness>({
     resolver: zodResolver(insertBusinessSchema),
     defaultValues: business || {
       name: "",
@@ -44,12 +44,22 @@ export default function BusinessProfile() {
   });
 
   const businessMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: InsertBusiness) => {
       console.log("Submitting business data:", data); // Debug log
       if (business) {
-        await apiRequest("PATCH", `/api/business/${business.id}`, data);
+        const res = await apiRequest("PATCH", `/api/business/${business.id}`, data);
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.message || "Failed to update business");
+        }
+        return res.json();
       } else {
-        await apiRequest("POST", "/api/business", data);
+        const res = await apiRequest("POST", "/api/business", data);
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.message || "Failed to create business");
+        }
+        return res.json();
       }
     },
     onSuccess: () => {
@@ -75,7 +85,7 @@ export default function BusinessProfile() {
     },
   });
 
-  const onSubmit = (data: any) => {
+  const onSubmit = (data: InsertBusiness) => {
     console.log("Form data:", data); // Debug log
     businessMutation.mutate(data);
   };

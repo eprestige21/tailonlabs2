@@ -11,7 +11,6 @@ import { deploymentManager } from "./deploy";
 import crypto from 'crypto';
 import {userApiKeys} from "@shared/schema"; // Assuming userApiKeys is defined in schema
 
-
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add health check endpoint for deployment monitoring
   app.get("/api/health", (req, res) => {
@@ -55,21 +54,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/business", async (req, res) => {
+app.post("/api/business", async (req, res) => {
     if (!req.user) {
       return res.status(401).send("Unauthorized");
     }
 
     try {
       console.log('Creating business with data:', req.body);
+
+      // Validate the request body
+      const businessData = insertBusinessSchema.parse(req.body);
+      console.log('Validated business data:', businessData);
+
       const [business] = await db
         .insert(businesses)
         .values({
-          name: req.body.name,
-          description: req.body.description,
-          website: req.body.website,
-          address: req.body.address,
-          phoneNumber: req.body.phoneNumber,
+          ...businessData,
           billingInfo: {
             balance: 0,
             autoRechargeThreshold: 10,
@@ -89,10 +89,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(business);
     } catch (error) {
       console.error('Error creating business:', error);
-      res.status(500).json({ 
-        message: "Failed to create business",
-        details: error instanceof Error ? error.message : String(error)
-      });
+      if (error.name === 'ZodError') {
+        res.status(400).json({ 
+          message: "Invalid business data",
+          details: error.errors 
+        });
+      } else {
+        res.status(500).json({ 
+          message: "Failed to create business",
+          details: error instanceof Error ? error.message : String(error)
+        });
+      }
     }
   });
 

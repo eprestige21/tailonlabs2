@@ -229,6 +229,9 @@ export const insertBusinessSchema = createInsertSchema(businesses).pick({
   address: true,
   phoneNumber: true,
 });
+
+export type InsertBusiness = z.infer<typeof insertBusinessSchema>;
+
 export const insertUsageHistorySchema = createInsertSchema(usageHistory).pick({
   service: true,
   quantity: true,
