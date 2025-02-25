@@ -674,51 +674,6 @@ export default function AIAgentPage() {
           </Form>
         </CardContent>
       </Card>
-
-      {agents.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4">Your AI Agents</h2>
-          <div className="grid gap-6">
-            {agents.map((agent) => (
-              <Card key={agent.id}>
-                <CardHeader>
-                  <CardTitle>{agent.name}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div>
-                      <span className="font-medium">Model:</span> {agent.model}
-                    </div>
-                    <div>
-                      <span className="font-medium">Status:</span>{" "}
-                      <span className={agent.isActive ? "text-green-500" : "text-red-500"}>
-                        {agent.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">System Prompt:</span>
-                      <Textarea
-                        value={agent.systemPrompt}
-                        readOnly
-                        rows={3}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <span className="font-medium">Functions:</span>
-                      <FunctionSection agentId={agent.id} />
-                    </div>
-                    <div>
-                      <span className="font-medium">Knowledge Base:</span>
-                      <KnowledgeBaseSection agentId={agent.id} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
     </DashboardShell>
   );
 }
