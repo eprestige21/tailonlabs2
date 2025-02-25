@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { PageHeader } from "@/components/ui/page-header";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useForm } from "react-hook-form";
@@ -33,6 +34,13 @@ export default function BusinessProfile() {
 
   const form = useForm<InsertBusiness>({
     resolver: zodResolver(insertBusinessSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      website: "",
+      address: "",
+      phoneNumber: "",
+    }
   });
 
   // Update form when business data is fetched
@@ -62,9 +70,12 @@ export default function BusinessProfile() {
       }
     },
     onSuccess: async (data) => {
+      // Update queries to reflect the new business data
       queryClient.invalidateQueries({ queryKey: ["/api/business"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      await refetch(); // Refetch business data after mutation
+
+      // Wait for the business data to be refetched
+      await refetch();
 
       toast({
         title: business ? "Business updated" : "Business created",
@@ -83,7 +94,6 @@ export default function BusinessProfile() {
   });
 
   const onSubmit = (data: InsertBusiness) => {
-    console.log("Form data:", data);
     businessMutation.mutate(data);
   };
 
@@ -91,12 +101,12 @@ export default function BusinessProfile() {
     <DashboardShell>
       <PageHeader
         title="Business Profile"
-        description="Manage your business information and settings"
+        description={business ? "Manage your business information" : "Create your business profile"}
       />
 
       <Card className="mt-8">
         <CardHeader>
-          <CardTitle>{business ? "Edit Profile" : "Create Business Profile"}</CardTitle>
+          <CardTitle>{business ? "Business Information" : "Create Business Profile"}</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -164,7 +174,6 @@ export default function BusinessProfile() {
                               const fullAddress = `${streetNumber} ${route}, ${city}, ${state} ${zipCode}`.trim();
                               field.onChange(fullAddress);
                             } else {
-                              // Fallback to the label if we can't get structured data
                               field.onChange(option?.label || '');
                             }
                           },
@@ -194,7 +203,7 @@ export default function BusinessProfile() {
                 type="submit" 
                 disabled={businessMutation.isPending}
               >
-                {business ? "Update Profile" : "Create Business"}
+                {business ? "Save Changes" : "Create Business"}
               </Button>
             </form>
           </Form>
