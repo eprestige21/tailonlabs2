@@ -323,6 +323,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Business ID is required" });
       }
 
+      console.log('Creating agent with data:', req.body); // Debug log
+      console.log('User business ID:', req.user.businessId); // Debug log
+
       const {
         name,
         description,
@@ -350,10 +353,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .returning();
 
+      console.log('Created agent:', agent); // Debug log
       res.status(201).json(agent);
     } catch (error) {
       console.error('Error creating agent:', error);
-      res.status(500).json({ message: "Failed to create agent" });
+      res.status(500).json({ 
+        message: "Failed to create agent",
+        details: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 

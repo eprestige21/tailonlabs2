@@ -94,12 +94,17 @@ export default function AIAgentPage() {
   });
 
   const onSubmit = form.handleSubmit((data) => {
-    const agentData: InsertAgent = {
+    const agentData = {
       name: data.name,
+      description: data.description,
       model: data.model,
+      personality: data.personality,
+      tone: data.tone,
+      temperature: data.temperature,
       systemPrompt: `Personality: ${data.personality}\nTone: ${data.tone}\n\n${data.systemPrompt}`,
       isActive: true,
     };
+    console.log("Submitting agent data:", agentData); // Debug log
     addAgentMutation.mutate(agentData);
   });
 
