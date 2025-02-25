@@ -94,6 +94,15 @@ export default function AIAgentPage() {
   });
 
   const onSubmit = form.handleSubmit((data) => {
+    if (!user?.businessId) {
+      toast({
+        title: "Error",
+        description: "No business associated with your account. Please create a business profile first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const agentData = {
       name: data.name,
       description: data.description,
@@ -103,6 +112,7 @@ export default function AIAgentPage() {
       temperature: data.temperature,
       systemPrompt: `Personality: ${data.personality}\nTone: ${data.tone}\n\n${data.systemPrompt}`,
       isActive: true,
+      businessId: user.businessId
     };
     console.log("Submitting agent data:", agentData); // Debug log
     addAgentMutation.mutate(agentData);
