@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
@@ -21,11 +21,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
-import { useEffect } from "react";
+import { useLocation } from "wouter";
 
 export default function BusinessProfile() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const { data: business, refetch: refetchBusiness } = useQuery({
     queryKey: ["/api/business", user?.businessId],
@@ -85,6 +86,11 @@ export default function BusinessProfile() {
           ? "Your business profile has been updated."
           : "Your business profile has been created.",
       });
+
+      // If this was a new business creation, redirect to dashboard
+      if (!user?.businessId) {
+        setLocation("/");
+      }
     },
     onError: (error: Error) => {
       toast({
