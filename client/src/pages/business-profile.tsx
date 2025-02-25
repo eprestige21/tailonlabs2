@@ -20,26 +20,27 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
+import { useEffect } from "react";
 
 export default function BusinessProfile() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { data: business } = useQuery({
+  const { data: business, refetch } = useQuery({
     queryKey: ["/api/business", user?.businessId],
     enabled: !!user?.businessId,
   });
 
   const form = useForm<InsertBusiness>({
     resolver: zodResolver(insertBusinessSchema),
-    defaultValues: business || {
-      name: "",
-      description: "",
-      website: "",
-      address: "",
-      phoneNumber: "",
-    },
   });
+
+  // Update form when business data is fetched
+  useEffect(() => {
+    if (business) {
+      form.reset(business);
+    }
+  }, [business, form]);
 
   const businessMutation = useMutation({
     mutationFn: async (data: InsertBusiness) => {
@@ -60,17 +61,17 @@ export default function BusinessProfile() {
         return res.json();
       }
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/business"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      await refetch(); // Refetch business data after mutation
+
       toast({
         title: business ? "Business updated" : "Business created",
         description: business
           ? "Your business profile has been updated."
           : "Your business profile has been created.",
       });
-      // Reset form with new data
-      form.reset(data);
     },
     onError: (error: Error) => {
       toast({
@@ -95,7 +96,7 @@ export default function BusinessProfile() {
 
       <Card className="mt-8">
         <CardHeader>
-          <CardTitle>Profile Information</CardTitle>
+          <CardTitle>{business ? "Edit Profile" : "Create Business Profile"}</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...form}>
