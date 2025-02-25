@@ -226,6 +226,8 @@ export const insertBusinessSchema = createInsertSchema(businesses).pick({
   name: true,
   description: true,
   website: true,
+  address: true,
+  phoneNumber: true,
 });
 export const insertUsageHistorySchema = createInsertSchema(usageHistory).pick({
   service: true,

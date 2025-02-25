@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
+import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
 
 export default function BusinessProfile() {
   const { user } = useAuth();
@@ -37,11 +38,14 @@ export default function BusinessProfile() {
       name: "",
       description: "",
       website: "",
+      address: "",
+      phoneNumber: "",
     },
   });
 
   const businessMutation = useMutation({
     mutationFn: async (data: any) => {
+      console.log("Submitting business data:", data); // Debug log
       if (business) {
         await apiRequest("PATCH", `/api/business/${business.id}`, data);
       } else {
@@ -62,6 +66,7 @@ export default function BusinessProfile() {
       }
     },
     onError: (error: Error) => {
+      console.error("Business mutation error:", error); // Debug log
       toast({
         title: "Error",
         description: error.message,
@@ -71,6 +76,7 @@ export default function BusinessProfile() {
   });
 
   const onSubmit = (data: any) => {
+    console.log("Form data:", data); // Debug log
     businessMutation.mutate(data);
   };
 
@@ -134,7 +140,17 @@ export default function BusinessProfile() {
                   <FormItem>
                     <FormLabel>Address</FormLabel>
                     <FormControl>
-                      <Input {...field} type="text" />
+                      <GooglePlacesAutocomplete
+                        apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+                        selectProps={{
+                          value: field.value ? { label: field.value, value: field.value } : null,
+                          onChange: (option: any) => {
+                            field.onChange(option?.label || '');
+                          },
+                          placeholder: "Start typing your address...",
+                          className: "w-full",
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
